@@ -1,28 +1,31 @@
 package com.github.javaparser.javaparser_core;
 
+import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
-
-import org.json.JSONObject;
 
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseException;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.javaparser_core.Variables.MethodsType;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.stream.JsonWriter;
 
 public class Thesis {
 	
-	public static JsonWriter json;
-	public static JSONObject json2 = new JSONObject();
-	public static int trans = 0;
-	public static int acts = 0;
-	public static int stages = 0;
+	private static JsonWriter json;
+//	private static JSONObject json2 = new JSONObject();
+	private static int trans = 0;
+	private static int acts = 0;
+	private static int stages = 0;
+	private static String[] methodsFile;
 
-	public static ArrayList<String> methods = new ArrayList<String>();
+	private static ArrayList<String> methods = new ArrayList<String>();
 
 	public static void main(String[] args) {
 		
@@ -74,85 +77,17 @@ public class Thesis {
 		
 		// Get the methods used in all the file starting once the JavaSparkContext is created and add them to the list
 		String regex = sparkVariable + "\\." ;
-		String[] methodsFile = file.split(regex);
+		methodsFile = file.split(regex);
 		String method = "";
-		MethodsType type = null;
 		for (int i = 1; i < methodsFile.length; i++) {
 			// This methods are applied directly to the JavaSparkContext
 			method = methodsFile[i].split("\\(")[0];
-			type = CheckMethod(method);
-			System.out.println("Method " +i+ ": " +method+ ", type: " +type);
-			System.out.println(json);
-			
-			if (type == MethodsType.action) { 
-				try{
-					if (stages > 0) {
-						json.endArray();
-					}
-					json.name("Stage: "+ stages);
-					json.beginArray();
-					json.value(method);					
-				} catch (IOException e){
-					e.printStackTrace();
-				}
-				
-				json2.put("Stage: " +acts, new JSONObject().put("Action", method));
-				acts++;
-				stages++;
-				System.out.println("ACTION: " +method);
-			}
-			else if(type == MethodsType.transformation){
-				try{
-					json.value(method);					
-				} catch (IOException e){
-					e.printStackTrace();
-				}
-				json2.put("Transformation " +trans, method);
-				trans++;
-				System.out.println("TRANSFORMATION: " +method);
-			} 
-			System.out.println(json);
-			
-				
-			methods.add(methodsFile[i]);
+			fillJSON(method);
 			String[] insideMethods = methodsFile[i].split("\\.");
+
 			for (int j = 1; j < insideMethods.length; j++) {
 				method = insideMethods[j].split("\\(")[0];
-				type = CheckMethod(method);
-				
-				System.out.println(json);
-				
-				if (type == MethodsType.action) { 
-					try{
-						if (stages > 0) {
-							json.endArray();
-						}
-						json.name("Stage: "+ stages);
-						json.beginArray();
-						json.value(method);					
-					} catch (IOException e){
-						e.printStackTrace();
-					}
-					
-					json2.put("Stage: " +acts, new JSONObject().put("Action", method));
-					acts++;
-					stages++;
-					System.out.println("ACTION: " +method);
-				}
-				else if(type == MethodsType.transformation){
-					try{
-						json.value(method);					
-					} catch (IOException e){
-						e.printStackTrace();
-					}
-					json2.put("Transformation " +trans, method);
-					trans++;
-					System.out.println("TRANSFORMATION: " +method);
-				} 
-				System.out.println(json);
-				
-				methods.add(method);
-				System.out.println("Method " +i+ ", inside method: " +j+": " +method+ ", type: " +type);
+				fillJSON(method);
 			}
 		}
 
@@ -167,16 +102,69 @@ public class Thesis {
 		}
 		
 
-		System.out.println("\n"+json2+"\n\n");
-		System.out.println(json);
-		
+//		System.out.println("\n\n"+json2+"\n\n");		
+		System.out.println("\n\nNumber of actions: " +acts+ " Number of transformations: " +trans+ "\n\n");		
+		for(String s: methods){
+			System.out.println("Method: " +s);
+		}
 				
-		System.out.println("\n\n\ntsparkVariable =" +sparkVariable+ "--------- \n\n");
-		System.out.println(file);
+		System.out.println("\n\nsparkVariable =" +sparkVariable+ "--------- \n\n");
+		
 	}
+	
+	private static void fillJSON(String method){
+		MethodsType type = CheckMethod(method);
+		System.out.println("Method : " +method+ ", type: " +type);
+		
+		if (type == MethodsType.shuffle || methods.size() == 0) { 
+			try{
+				if (stages > 0) {
+					json.endArray();
+				}
+				json.name("Stage: "+ stages);
+				json.beginArray();
+				json.value(method);					
+			} catch (IOException e){
+				e.printStackTrace();
+			}
+			
+//			json2.put("Stage: " +acts, new JSONObject().put("Action", method));
+			stages++;
+			System.out.println("SHUFFLE: " +method);
+			methods.add(method);
+		} else if(type == MethodsType.transformation || type == MethodsType.action){
+			try{
+				json.value(method);					
+			} catch (IOException e){
+				e.printStackTrace();
+			}
+//			json2.put("Transformation " +trans, method);
+			if(type == MethodsType.transformation){
+				trans++;
+				System.out.println("TRANSFORMATION: " +method);								
+			} else {
+				acts++;
+				System.out.println("ACTION: " +method);								
+			}
+			methods.add(method);
+		} 					
+	}
+	
+	
+	
 	
 	// Check if the method receive is an action, a transformation or is some method that is not from spark
 	private static MethodsType CheckMethod(String method){
+
+		if(method.matches(".*By.*")) // Check if the method passed will shuffle, considering that any transformation of the kind *By or *ByKey can result in shuffle
+			return MethodsType.shuffle;
+		else {
+			for (int i = 0; i < Variables.shuffles.length; i++) {
+				if(method.equals(Variables.shuffles[i]))
+					return MethodsType.shuffle;		
+			}
+		}
+		
 		for (int i = 0; i < Variables.actions.length; i++) {
 			if(method.equals(Variables.actions[i]))
 				return MethodsType.action;
