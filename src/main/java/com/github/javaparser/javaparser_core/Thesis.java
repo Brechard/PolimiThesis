@@ -7,6 +7,8 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseException;
@@ -20,16 +22,19 @@ public class Thesis {
 	
 	private static JsonWriter json;
 //	private static JSONObject json2 = new JSONObject();
-	private static int trans = 0;
-	private static int acts = 0;
-	private static int stages = 0;
+	private static int trans;
+	private static int acts;
+	private static int stages;
 	private static String[] methodsFile;
-
+	private static int jobs;
+	
 	private static ArrayList<String> methods = new ArrayList<String>();
+	
+	private static Map<String, Map<String, ArrayList<String>>> jobsMap = new HashMap<String, Map<String, ArrayList<String>>>();
 
 	public static void main(String[] args) {
-		
-		
+		jobs = 0; stages = 1; acts = 0; trans = 0;
+			
 		try {
 			json = new JsonWriter(new FileWriter(Variables.JSONPath));
 			json.beginObject();
@@ -71,6 +76,7 @@ public class Thesis {
 		for (int i = 0; i < fileArray.length -2; i++) {
 			file += fileArray[i];
 		}
+				
 		
 		// Get the name of the variable JavaSparkContext
 		String sparkVariable = file.split("JavaSparkContext")[1].replace(" ","").split("=")[0];
@@ -82,16 +88,22 @@ public class Thesis {
 		for (int i = 1; i < methodsFile.length; i++) {
 			// This methods are applied directly to the JavaSparkContext
 			method = methodsFile[i].split("\\(")[0];
-			fillJSON(method);
+			
+			fillMap(method);
+			
+			
+			
+//			fillJSON(method);
 			String[] insideMethods = methodsFile[i].split("\\.");
 
 			for (int j = 1; j < insideMethods.length; j++) {
 				method = insideMethods[j].split("\\(")[0];
-				fillJSON(method);
+				fillMap(method);
+	//			fillJSON(method);
 			}
 		}
 
-		
+		/*
 		try {
 			if (stages > 0)
 				json.endArray();				
@@ -100,7 +112,7 @@ public class Thesis {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		
+		*/
 
 //		System.out.println("\n\n"+json2+"\n\n");		
 		System.out.println("\n\nNumber of actions: " +acts+ " Number of transformations: " +trans+ "\n\n");		
@@ -109,6 +121,79 @@ public class Thesis {
 		}
 				
 		System.out.println("\n\nsparkVariable =" +sparkVariable+ "--------- \n\n");
+		
+		Gson gson = new GsonBuilder().setPrettyPrinting().create();
+		String jsonString = gson.toJson(jobsMap);
+		System.out.println(jsonString);
+		
+	}
+	
+	private static void fillMap(String method){
+		
+		MethodsType type = CheckMethod(method);
+		
+//		System.out.println("Method : " +method+ ", type: " +type);
+		
+		// If the method sent is an action a new job should be created
+		if (type == MethodsType.action){
+			
+			jobs++;
+			Map<String, ArrayList<String>> stageMap = new HashMap<String, ArrayList<String>>();
+			ArrayList<String> methodsList = new ArrayList<String>();
+			methodsList.add(method);
+			stageMap.put("1", methodsList);
+			jobsMap.put(String.valueOf(jobs), stageMap);
+			
+			System.out.println("ACTION: " +method);
+			Gson gson = new GsonBuilder().setPrettyPrinting().create();
+			String jsonString = gson.toJson(jobsMap);
+			System.out.println(jsonString);
+
+			acts++;
+		}
+		
+		// If the method sent will shuffle it means we have to create a new stage
+		
+		else if (type == MethodsType.shuffle) { 
+				
+			stages++;
+			
+			Map<String, ArrayList<String>> stageMap;
+			if (jobsMap.containsKey(String.valueOf(jobs)))
+				stageMap = jobsMap.get(String.valueOf(jobs));				
+			else 
+				stageMap = new HashMap<String, ArrayList<String>>();
+			
+			ArrayList<String> methodsList = new ArrayList<String>();
+			methodsList.add(method);
+			stageMap.put(String.valueOf(stages), methodsList);
+			jobsMap.put(String.valueOf(jobs), stageMap);
+						
+			System.out.println("SHUFFLE: " +method+ ", stages: "+stages);
+			Gson gson = new GsonBuilder().setPrettyPrinting().create();
+			String jsonString = gson.toJson(jobsMap);
+			System.out.println(jsonString);
+
+			methods.add(method);
+		} 
+		// If the method sent is a transformation we keep in the same stage
+		
+		else if(type == MethodsType.transformation){
+			
+			Map<String, ArrayList<String>> stageMap = jobsMap.get(String.valueOf(jobs));			
+			ArrayList<String> methodsList = stageMap.get(String.valueOf(stageMap.size()));
+			methodsList.add(method);
+			stageMap.put(String.valueOf(stageMap.size()), methodsList);
+			jobsMap.put(String.valueOf(jobs), stageMap);
+
+			trans++;
+			System.out.println("TRANSFORMATION: " +method);
+			Gson gson = new GsonBuilder().setPrettyPrinting().create();
+			String jsonString = gson.toJson(jobsMap);
+			System.out.println(jsonString);
+
+			methods.add(method);
+		} 		
 		
 	}
 	
@@ -149,7 +234,6 @@ public class Thesis {
 			methods.add(method);
 		} 					
 	}
-	
 	
 	
 	

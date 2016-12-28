@@ -10,7 +10,7 @@ public class Variables
 		action, transformation, shuffle, others
 	}
 	
-	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/Chapter4.java";	
+	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/JavaPageRank.java";	
 
 	public static String[] actions = 
 		{ "reduce", "collect", "count", "first", "take", "takeSample", "takeOrdered","saveAsTextFile","saveAsSequenceFile", "saveAsObjectFile","countByKey","foreach"
