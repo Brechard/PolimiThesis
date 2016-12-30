@@ -10,62 +10,29 @@ public class Variables
 		action, transformation, shuffle, others
 	}
 	
-	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/JavaPageRank.java";	
+	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/SparkJoins.java";	
 
 	public static String[] actions = 
 		{ "reduce", "collect", "count", "first", "take", "takeSample", "takeOrdered","saveAsTextFile","saveAsSequenceFile", "saveAsObjectFile","countByKey","foreach"
 				
 		
-				,"collectAsMap", "textFile"};
+				,"collectAsMap"};
 	
 	public static String[] transformations = 
 		{ "map", "filter", "flatMap", "mapPartitions", "mapPartitionsWithIndex", "sample", "union", "intersection", "distinct", "groupByKey", "reduceByKey",
 				"aggregateByKey", "sortByKey", "join", "cogroup", "cartesian", "pipe", "coalesce", "repartition", "repartitionAndSortWithinPartitions"
+				, "substract", "cartesian"
+
 				
-				, "mapToPair"};
-	public static String[] shuffles = { "repartition", "join", "cogroup"};
+				, "mapToPair","textFile"};
+	
+	// TextFile may not be exactly a shuffle but it creates a new stage that is why we will consider it as a shuffle method and also transformation 
+	public static String[] shuffles = { "repartition", "join", "cogroup", "distinct", "leftOuterJoin", "rightOuterJoin","sortByKey", "textFile"};
 		
 	public static String jsonString = "";
 	public static String JSONPath = "methods.json";
-	   
-/*
-private static void fillJSON(String method){
-	MethodsType type = CheckMethod(method);
-	System.out.println("Method : " +method+ ", type: " +type);
-	if (type == MethodsType.shuffle) { 
-		try{
-			if (stages > 0) {
-				json.endArray();
-			}
-			json.name("Stage: "+ stages);
-			json.beginArray();
-			json.value(method);					
-		} catch (IOException e){
-			e.printStackTrace();
-		}
-		
-//		json2.put("Stage: " +acts, new JSONObject().put("Action", method));
-		stages++;
-		System.out.println("SHUFFLE: " +method);
-		methods.add(method);
-	}
-	else if(type == MethodsType.transformation || type == MethodsType.action){
-		try{
-			json.value(method);					
-		} catch (IOException e){
-			e.printStackTrace();
-		}
-//		json2.put("Transformation " +trans, method);
-		if(type == MethodsType.transformation){
-			trans++;
-			System.out.println("TRANSFORMATION: " +method);								
-		} else {
-			acts++;
-			System.out.println("ACTION: " +method);								
-		}
-		methods.add(method);
-	} 					
-}
-*/
+	
+	public static String[] combineMethods = { "join", "union", "intersection", "substract", "cartesian"};
+
 }
 
