@@ -84,74 +84,20 @@ public class Thesis {
 		findRDDs();
 		
 		// Get the methods used in all the file starting once the JavaSparkContext is created and add them to the list
-		String regex = sparkVariable + "\\." ;
+		String regex = "\\." ;
 		methodsFile = file.split(regex);
 		String method = "";
 		for (int i = 1; i < methodsFile.length; i++) {
 			
 			// This methods are applied directly to the JavaSparkContext
 			method = methodsFile[i].split("\\(")[0];
+					
 			
 			
 			
 			
-			// Create a Pattern object
-			Pattern r = Pattern.compile("\\w*");
-			// Now create matcher object.
-			Matcher m = r.matcher(methodsFile[i - 1]);
-
-			String s = "";
-			while (m.find()) {
-				if (listRDDs.contains(m.group())) {
-					s = m.group();
-				}
-			}
-			if (!s.equals("")) {
-				System.out.println(">> RDD: " +s+ ", i = " +i);																				
-			}
-			
-			
-			
-			
-			
-			
-			
-			String[] insideMethods = methodsFile[i].split("\\.");			
 			fillMap(method);
 			
-			
-			
-//			fillJSON(method);
-
-			for (int j = 1; j < insideMethods.length; j++) {
-				method = insideMethods[j].split("\\(")[0];
-
-				
-				// Create a Pattern object
-				r = Pattern.compile("\\w*");
-				// Now create matcher object.
-				m = r.matcher(insideMethods[j - 1]);
-
-				while (m.find()) {
-					if (listRDDs.contains(m.group())) {
-						System.out.println(">> RDD: " +m.group()+ ", j = " +j);																				
-					}
-				}
-
-				
-				
-				
-				
-				
-				
-				
-				
-				
-				
-				
-				fillMap(method);
-	//			fillJSON(method);
-			}
 		}
 
 		System.out.println("\n\nNumber of actions: " +acts+ ". Number of transformations: " +trans+ ". Number of stages: " +stages+"\n\n");		
@@ -238,8 +184,6 @@ public class Thesis {
 		if (newJob && (type != MethodsType.others)){
 			System.out.println(">>>>>>>>> newJob");
 			newJob = false;
-			jobs++;
-			stages++;
 
 			Map<Integer, ArrayList<String>> stageMap = new HashMap<Integer, ArrayList<String>>();
 			ArrayList<String> methodsList = new ArrayList<String>();
@@ -248,27 +192,31 @@ public class Thesis {
 			jobsMap.put(String.valueOf(jobs), stageMap);
 			
 			prettyPrint();
+			jobs++;
+			stages++;
 			acts++;
+			methods.add(method);
+
 		}
 		
 		// If the method sent will shuffle it means we have to create a new stage
 		
 		else if (type == MethodsType.shuffle) { 				
-			stages++;
 			System.out.println("SHUFFLE: " +method+ ", stages: "+stages);
 			
 			Map<Integer, ArrayList<String>> stageMap;
-			if (jobsMap.containsKey(String.valueOf(jobs)))
-				stageMap = jobsMap.get(String.valueOf(jobs));				
+			if (jobsMap.containsKey(String.valueOf(jobs - 1)))
+				stageMap = jobsMap.get(String.valueOf(jobs - 1));				
 			else 
 				stageMap = new HashMap<Integer, ArrayList<String>>();
 			
 			ArrayList<String> methodsList = new ArrayList<String>();
 			methodsList.add(method);
 			stageMap.put(stages, methodsList);
-			jobsMap.put(String.valueOf(jobs), stageMap);
+			jobsMap.put(String.valueOf(jobs - 1), stageMap);
 						
 			prettyPrint();
+			stages++;
 			methods.add(method);
 		} 
 		// If the method sent is a transformation we keep in the same stage
@@ -276,11 +224,11 @@ public class Thesis {
 		else if(type == MethodsType.transformation){
 			System.out.println("TRANSFORMATION: " +method+ ", stages: " +stages+ ", jobs:" +jobs);
 			
-			Map<Integer, ArrayList<String>> stageMap = jobsMap.get(String.valueOf(jobs));
-			ArrayList<String> methodsList = stageMap.get(stages);
+			Map<Integer, ArrayList<String>> stageMap = jobsMap.get(String.valueOf(jobs - 1));
+			ArrayList<String> methodsList = stageMap.get(stages - 1);
 			methodsList.add(method);
-			stageMap.put(stages, methodsList);
-			jobsMap.put(String.valueOf(jobs), stageMap);
+			stageMap.put(stages - 1, methodsList);
+			jobsMap.put(String.valueOf(jobs - 1), stageMap);
 
 			trans++;
 			prettyPrint();
