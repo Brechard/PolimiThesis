@@ -33,6 +33,8 @@ public class Variables
 	public static String JSONPath = "methods.json";
 	
 	public static String[] combineMethods = { "join", "union", "intersection", "substract", "cartesian","leftOuterJoin","rightOuterJoin"};
+	
+	public static String[] withInputMethods = { "textFile", "mapToPair", "leftOuterJoin", "rightOuterJoin" };
 
 }
 
