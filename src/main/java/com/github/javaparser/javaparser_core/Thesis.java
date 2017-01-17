@@ -18,6 +18,7 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseException;
 import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.javaparser_core.Thesis.Stage;
 import com.github.javaparser.javaparser_core.Variables.MethodsType;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -38,6 +39,8 @@ public class Thesis {
 	private static DefaultMutableTreeNode root;
 	private static List<Map<Integer, Stage>> jobsList = new ArrayList<Map<Integer, Stage>>();
 	private static Map<Integer, Stage> stagesList = new HashMap<Integer, Stage>();
+	private static int nStages;
+
 	public static void main(String[] args) throws Exception {
 		jobs = 0; stages = 0; rdds = 0;
 
@@ -59,7 +62,7 @@ public class Thesis {
 		
 		file = cu.toStringWithoutComments();
 		file = file.split("public static void main")[1];
-		
+
 		root = new DefaultMutableTreeNode("Jobs");
 		
 		findRDDs();
@@ -90,7 +93,7 @@ public class Thesis {
 
 		for(int i = 0; i < actionList.size(); i++) { // We iterate over the map with the spark methods
 			addChild(String.valueOf(i)+ "-" +actionList.get(i).split("-")[1], root);
-			Map<Integer, Stage> map = new HashMap();
+			Map<Integer, Stage> map = new HashMap<Integer, Stage>();
 			jobsList.add(map);
 		}
 		
@@ -115,14 +118,26 @@ public class Thesis {
 					throw new Exception("An action cannnot be applied to an SC");
 				}
 			} else {
-				generate(file.substring(searchStartBlock(key), key), (DefaultMutableTreeNode) root.getChildAt(jobs), null, null);
+				int start = searchStartBlock(key);
+				generate(new Pair(file.substring(start, key), start), (DefaultMutableTreeNode) root.getChildAt(jobs), null, null);
 			}
-			System.out.println("\n\n\n\n\n\n\n\n\n\n\nAction found: " +method+ ", a new job should be generated, jobs = "+jobs+"\n\n\n\n\n\n\n\n\n\n\n");
+			System.out.println("\nAction found: " +method+ ", a new job should be generated, jobs = "+jobs);
+		}
+		
+		nStages = -1;
+		for(int i = actionList.size() - 1; i >= 0; i--) { // We iterate over the map with the spark methods
+			nStages += jobsList.get(i).size();
+		}
+		System.out.println("Number of stages: " +nStages);
+		for(int i = actionList.size() - 1; i >= 0; i--) { // We iterate over the map with the spark methods
+			stagesList = jobsList.get(i);
+			updateStages();
 		}
 		
 		printTree();
 		
 		prettyPrint(jobsList);
+		
 	}
 	
 	public static boolean checkCombine(String method){
@@ -190,8 +205,7 @@ public class Thesis {
 					continue;
 				else equal++;
 			}
-			if (equal == 0) {
-				System.out.println("\n\n\n\n\n\n\n\n\n\n\n EQUAL: stageId:"+stage.id+", stage1Id: " +stage1.id+"\n\n\n\n\n\n\n\n\n\n\n");
+			if (equal == 0 && rdds.size() == rdds1.size()) {
 				return stage1.id;
 			}
 		}
@@ -204,9 +218,9 @@ public class Thesis {
 	/*
 	 * Finds the block where the rdd passed as parameter is created
 	 */
-	public static String findBlock(String rdd){
+	public static Pair findBlock(String rdd){
 		int start = findRDD(rdd);		
-		return file.substring(start, searchEndBlock(start, 1, file));
+		return new Pair(file.substring(start, searchEndBlock(start, 1, file)), start);
 	}
 	
 	public static String findCache(int end, String block){
@@ -414,18 +428,17 @@ public class Thesis {
 	/*
 	 * Analyzes a block of code in order to find the relations inside the block
 	 */
-	public static void generate(String block, DefaultMutableTreeNode parent, Stage parent2, Integer parentId){
+	public static void generate(Pair pair, DefaultMutableTreeNode parent, Stage parent2, Integer parentId){
+		String block = pair.getBlock();
+		int beggining = pair.getFirstPos();
 		/*
 		System.out.println("\n>> generate");
+		System.out.println("Beggining: " +beggining+"\n");
 		System.out.println("Block: " +block+"\n");
 		System.out.println("PARENT: ");
-		prettyPrint(parent2);
+		prettyPrint(parent2);	
 		*/
-
-		// Create a Pattern object (words)
-		Pattern r = Pattern.compile("\\w*");
-		// Now create matcher object.
-		Matcher m = r.matcher(block);
+		
 		
 		String cache = "";
 		int i = 0;
@@ -436,12 +449,13 @@ public class Thesis {
 		List<Integer> rddsParentsId = new ArrayList<Integer>();
 
 		// First we read the block to create the relations inside this block backwards, in order to do it we need to read it forward and analyze it backwards		
-		Matcher m1 = r.matcher(block);
+		Pattern r1 = Pattern.compile("\\w*");
+		Matcher m1 = r1.matcher(block);
 		int end = 0;
 		while (m1.find()) {
 			if ((m1.start() - 1) >= 0 && block.charAt(m1.start() - 1) == '.' && checkMethod(m1.group()) != MethodsType.others) { // Method found
 				if (m1.start() > end) {
-					forward.add(String.valueOf(m1.start()) +"-"+ m1.group());
+					forward.add(String.valueOf(m1.start()) +"-"+ m1.group() +"-"+ String.valueOf(m1.start() + beggining));
 					end = searchEndHelper(m1.end(), block);
 				}
 			}
@@ -450,7 +464,8 @@ public class Thesis {
 		for (int b = 0; b < rddsParentsId.size() ; b++) {
 			System.out.println("generate, rddParentId: " +b+": "+rddsParentsId.get(b));
 		}
-		if (rddsParentsId.isEmpty()) {
+		if (rddsParentsId.isEmpty()) {		int nStages = stagesList.size() - 1;
+
 			System.out.println("generate, rddParentId is empty");			
 		}
 		*/
@@ -459,38 +474,66 @@ public class Thesis {
 		// Create dependencies of the block passed analyzing backwards
 		for (int j = forward.size() - 1; j >= 0; j--) {
 			String method = forward.get(j).split("-")[1];
+			String pos = forward.get(j).split("-")[2];
 			if (parent2 == null)
 				parent2 = new Stage();
-//			System.out.println("Received Method: " +method+ ", type: " +checkMethod(method)+", parentId: " +parent2.getId()+", rddsParentsId: " +parentId);
+			System.out.println("Received Method: " +method+ ", type: " +checkMethod(method)+", parentId: " +parent2.getId()+", rddsParentsId: " +parentId+", pos: " +pos);
 			Stage parentCache = parent2;
 			MethodsType type = checkMethod(method);
 			if (type == MethodsType.shuffle){
 				parent = addChild("+ " +method, parent);
-				/*
-				private static DefaultMutableTreeNode addChild(String title, DefaultMutableTreeNode parent) {
-					DefaultMutableTreeNode child = new DefaultMutableTreeNode(title);
-					parent.add(child);
-					return child;
-				}
-				*/
-				
 				Stage child = new Stage();
-				RDD rdd1 = new RDD(method+" at char " +forward.get(j).split("-")[0]);
+				RDD rdd1 = new RDD(method+" at char " +pos);
+				RDD rdd2 = new RDD(method+" at char " +pos);
 				
 				
 				if (parentId != null)
 					rdd1.addParentId(parentId);
-				parentId = rdd1.getId();
+				rdd2.addParentId(rdd1.getId());
+				parentId = rdd2.getId();
 				parent2.addChild(rdd1);
+				// Check if the stage created already exist
+				int check = checkExistence(parent2);
+				
+				// If it exist then it means the already existing stage has two childs, so we have to modify the already existing
+				// stage instead of creating one
+				if(check > -1){
+					
+					System.out.println("CHECK: " +check);
+					prettyPrint(stagesList);
+					System.out.println("Parent to check");
+					prettyPrint(parent2);
+					System.out.println("Parent equivalent");
+					
+					Stage newChild = stagesList.get(check);
+					prettyPrint(newChild);
+					RDD lastRDD = newChild.getRDDs().get(0);
+					lastRDD.addParentId(parent2.getRDDs().get(0).getParentsId());
+					newChild.addParentId(parent2.getParentId());
+					int oldId = newChild.getId();
+					newChild.setId(stages++);
+					stagesList.put(newChild.getId(), newChild);
+					stagesList.remove(oldId);
 
-//				checkExistence(parent2);
-				stagesList.put(parent2.getId(), parent2);
+					for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
+						Stage stage = entry.getValue();
+						List<Integer> parentsIds = stage.getParentId();
+						for (int z = 0; z < parentsIds.size(); z++) {
+							if (parentsIds.get(z) == oldId){
+								parentsIds.remove(z);
+								parentsIds.add(z, newChild.getId());
+							}
+						}
+					}
+				} else  stagesList.put(parent2.getId(), parent2);
+
 				child.addParentId(parent2.getId());
+				child.addChild(rdd2);
 				parent2 = child;
 			} else {
 
 				addChild("- " +method, parent);
-				RDD rdd1 = new RDD(method+" at char " +forward.get(j).split("-")[0]);
+				RDD rdd1 = new RDD(method+" at char " +pos);
 //				rdd1.addParentId(parent2.getId());
 
 				
@@ -500,7 +543,7 @@ public class Thesis {
 				
 				parent2.addChild(rdd1);
 			}
-//			System.out.println("ParentId: " +parent2.getId()+ " in p2: " +p2);
+//			System.out.println("ParentId: " +parent2.getId()+ " in p2: " +position);
 //			System.out.println("Save ParentId: " +parent2.getId()+ ", rddsParentsId: " +parentId+ " in p2: " +position+"\n");
 			parents.add(p++, parent);
 			parents2.add(position, parent2);
@@ -516,7 +559,7 @@ public class Thesis {
 				rddsParentsId.add(position, parentId);
 //				System.out.println("rddsParentsId: " +parentId+ " in p2: " +position);
 //				System.out.println("PARENT COMBINE: " +position);
-				prettyPrint(child);
+//				prettyPrint(child);
 			}
 			/*
 			for (int b = 0; b < rddsParentsId.size() ; b++) {
@@ -546,30 +589,24 @@ public class Thesis {
 						position = position + 2;
 						changedPosition = true;
 						if (checkRDD(cache) || checkSC(cache)) { 
-							/*
-							System.out.println("Combine method with variable: " +cache+", parentId: " +parents2.get(position).getId()+", in 1");
-							if (changedPosition)
-								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
-							*/
+//							System.out.println("Combine method with variable: " +cache+", parentId: " +parents2.get(position).getId()+", in 1");
+//							if (changedPosition)
+//								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
 							generate(findBlock(cache), parents.get(p), parents2.get(position), rddsParentsId.get(position));					
 						} else {
 							if(!checkCombine(method)){
 								position = position - 2;
 								changedPosition  = false;
 							}
-							/*
-							if (changedPosition)
-								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
-							*/
+//							if (changedPosition)
+//								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
 							String subBlock = block.substring(start, end +1);
 //							System.out.println("Written combine method: " +subBlock+", parentId: " +parents2.get(position).getId()+", in p2: " +position+ ", p: " +p+ ", rddsParentsId: " +rddsParentsId.get(position));
-							generate(subBlock, parents.get(p), parents2.get(position), rddsParentsId.get(position));
+							generate(new Pair(subBlock, start + beggining), parents.get(p), parents2.get(position), rddsParentsId.get(position));
 						}					
 					} 
-					/*
-					else 					
-						System.out.println("No it is not");
-					*/
+//					else 					
+//						System.out.println("No it is not");
 					continue;
 				}
 				int pos = Integer.valueOf(forward.get(j).split("-")[0]);
@@ -614,12 +651,10 @@ public class Thesis {
 									changedPosition = false;
 								}
 							}
-							/*
-							System.out.println("Combine method with variable: " +cache+", in p2: " +p2+", type: " +checkMethod(methodBefore));
-							if (changedPosition)
-								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
-							System.out.println("Combine method with variable: " +cache+", j: " +j+", parentId: " +parents2.get(position).getId()+", in p2: " +position+ ", p: " +p+ ", rddsParentsId: " +rddsParentsId.get(position)+", position: "+position);
-							*/
+//							System.out.println("Combine method with variable: " +cache+", in p2: " +position+", type: " +checkMethod(methodBefore));
+//							if (changedPosition)
+//								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
+//							System.out.println("Combine method with variable: " +cache+", j: " +j+", parentId: " +parents2.get(position).getId()+", in p2: " +position+ ", p: " +p+ ", rddsParentsId: " +rddsParentsId.get(position)+", position: "+position);
 							generate(findBlock(cache), parents.get(p), parents2.get(position), rddsParentsId.get(position));					
 						} else {
 							if (j - 1 >= 0) {
@@ -642,13 +677,12 @@ public class Thesis {
 									changedPosition = false;
 								}
 							}
-							/*
-							if (changedPosition)
-								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
-							*/
-							String subBlock = block.substring(searchStartParenthesisBlock(block, pos), pos);
+//							if (changedPosition)
+//								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
+							int start = searchStartParenthesisBlock(block, pos);
+							String subBlock = block.substring(start, pos);
 //							System.out.println("Written combine method: " +subBlock+", parentId: " +parents2.get(position).getId()+", in p2: " +position+ ", rddsParentsId: " +rddsParentsId.get(position));
-							generate(subBlock, parents.get(p), parents2.get(position), rddsParentsId.get(position));
+							generate(new Pair(subBlock, start), parents.get(p), parents2.get(position), rddsParentsId.get(position));
 						}	
 						if (changedPosition) {
 							if (type == MethodsType.shuffle) {
@@ -692,6 +726,95 @@ public class Thesis {
 		}
 	}
 	
+	public static void updateStages(){
+		
+		List<Stage> childsStagesList = new ArrayList<Stage>();
+		List<Integer> keys = new ArrayList<Integer>();
+		// Find the stages that does not have any parent wich will be the last stage
+		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet())
+			keys.add(entry.getKey());
+		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
+			Stage stage = entry.getValue();
+			if(stage.getParentId().isEmpty()){
+				int oldId = stage.getId();
+				stage.setId(nStages--);
+				
+				System.out.println("Stage modified: " +stage.getId()+", oldId: " +oldId);
+				childsStagesList = updateStagesParentId(stage.getId(), oldId, stage);
+				break; // There can not be more than a final stage
+			}				
+		}			
+		
+		while(!childsStagesList.isEmpty()){
+			List<Stage> aux = new ArrayList<Stage>();
+			for (Stage stage : childsStagesList) {
+				int oldId = stage.getId();
+				stage.setId(nStages--);
+				List<Stage> aux2 = updateStagesParentId(stage.getId(), oldId, stage);
+				for (Stage stage2 : aux2) {
+					if(!aux.contains(stage2)) // If a Stages has already been added to be modified we don't have to add it twice
+						aux.add(stage2);
+				}
+			}
+			childsStagesList = aux;
+			if(nStages < -5)
+				throw new Error("ERROR");
+		}
+		
+		
+		System.out.println("Size: "+keys.size());
+		for (int i = 0; i < keys.size(); i++) {
+			Stage stage ;
+			if(stagesList.containsKey(keys.get(i)))
+				stage = stagesList.get(keys.get(i)); //Cache where i will put the stage
+			else continue;
+			Stage cache = null;
+			if(stagesList.containsKey(stage.getId()))
+				cache = stagesList.get(stage.getId());
+			if(keys.get(i) != stage.getId()){
+				stagesList.put(stage.getId(), stage);
+				stagesList.remove(keys.get(i));
+			}
+			int pos = i;
+			while(cache != null && cache.getId() != pos){
+				Stage aux = cache;
+				pos = aux.getId();
+				cache = stagesList.get(pos);
+				stagesList.put(pos, aux);
+			}
+		}
+
+		for(Integer i : keys){
+			if(i >= keys.size() + (nStages+1) && stagesList.containsKey(i)){
+				System.out.println("remove: "+i);
+				stagesList.remove(i);				
+			}
+		}
+	}
+	
+	public static List<Stage> updateStagesParentId(int newId, int oldId, Stage stageCalling){
+		List<Stage> childsStagesList = new ArrayList<Stage>();
+//		System.out.println("OldId: " +oldId+ ", newId: " +newId);
+
+		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
+			Stage stage = entry.getValue();
+			if(stage == stageCalling) continue;
+			List<Integer> parentsIds = stage.getParentId();
+//			System.out.println("Stage checking:");
+//			prettyPrint(stage);
+			for(int i = 0; i < parentsIds.size(); i++){
+				if(parentsIds.get(i) == oldId){
+//					System.out.println("Stage " +stage.getId()+ " modified parentId, oldId: " +oldId+", newId: " +newId);					
+					parentsIds.remove(i);
+					parentsIds.add(i, newId);
+					childsStagesList.add(stage);
+				}
+			}
+		}	
+		
+		return childsStagesList;
+	}
+	
 	public static class Stage{
 		private int id;
 		private List<RDD> rdds;
@@ -702,13 +825,14 @@ public class Thesis {
 			parentsIds = new ArrayList<Integer>();
 			rdds = new ArrayList<RDD>();
 		}
-		
 		public void addChild(RDD child) {
 			rdds.add(child);
 		}
-		
 		public void addParentId(int id){
 			parentsIds.add(id);
+		}
+		public void addParentId(List<Integer> ids){
+			parentsIds.addAll(ids);
 		}
 		public List<Integer> getParentId(){
 			return parentsIds;
@@ -718,6 +842,9 @@ public class Thesis {
 		}
 		public List<RDD> getRDDs(){
 			return rdds;
+		}
+		public void setId(int id){
+			this.id = id;
 		}
 	}
 	
@@ -736,14 +863,40 @@ public class Thesis {
 			parentsIds.add(id);
 		}
 		
+		public void addParentId(List<Integer> ids){
+			parentsIds.addAll(ids);			
+		}
+
 		public int getId(){
 			return id;
 		}
 		
 		public String getCallSite(){
 			return callSite;
-		}		
+		}	
+		
+		public List<Integer> getParentsId(){
+			return parentsIds;
+		}
 	}	
+	
+	public static class Pair{
+	    private final String block;
+	    private final int firstPos;
+
+	    public Pair(String block, int firstPos) {
+	        this.block = block;
+	        this.firstPos = firstPos;
+	    }
+
+	    public int getFirstPos() {
+	        return firstPos;
+	    }
+
+	    public String getBlock() {
+	        return block;
+	    }
+	}
 }
 
 
