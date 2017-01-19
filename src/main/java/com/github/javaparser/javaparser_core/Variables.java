@@ -11,6 +11,7 @@ public class Variables
 	}
 	
 	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/TestGiovanni.java";	
+//	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/SparkJoins.java";	
 	public static String pathJSON = "/home/rodrigo/workspace/output.json";	
 
 	public static String[] actions = 
