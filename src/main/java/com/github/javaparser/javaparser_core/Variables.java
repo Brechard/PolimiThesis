@@ -10,8 +10,8 @@ public class Variables
 		action, transformation, shuffle, others
 	}
 	
-	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/TestGiovanni.java";	
-//	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/SparkJoins.java";	
+//	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/Chapter4.java";	
+	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/SparkJoins.java";	
 	public static String pathJSON = "/home/rodrigo/workspace/output.json";	
 
 	public static String[] actions = 
@@ -26,7 +26,7 @@ public class Variables
 				, "substract", "cartesian"
 
 				
-				, "mapToPair","textFile"};
+				,"combineByKey", "mapToPair","textFile"};
 	
 	// TextFile may not be exactly a shuffle but it creates a new stage that is why we will consider it as a shuffle method and also transformation 
 	// The important here is not if the method is really a shuffle, only if it creates a new stage because this is the use of this
@@ -39,5 +39,8 @@ public class Variables
 	
 	public static String[] withInputMethods = { "textFile", "mapToPair", "leftOuterJoin", "rightOuterJoin" };
 
+	// Any method of the kind *By or *ByKey can result in shuffle, that's why here we will place the By method's that we know are transformation and will not create a new stage
+	public static String[] methodsByTransformation = {"combineByKey", "groupByKey" };
+	
 }
 

@@ -96,10 +96,12 @@ public class Thesis {
 			Map<Integer, Stage> map = new HashMap<Integer, Stage>();
 			jobsList.add(map);
 		}
-		
+		System.out.println("Number of jobs: " +jobs);
 		for(int i = actionList.size() - 1; i >= 0; i--) { // We iterate over the map with the spark methods
 			jobs--;
 			stagesList = jobsList.get(jobs);
+
+			
 			int key = Integer.valueOf(actionList.get(i).split("-")[0]);
 			String method = actionList.get(i).split("-")[1];
 			String rddOrSc = "";
@@ -110,18 +112,19 @@ public class Thesis {
 			}
   
 			char c = file.charAt(key - 2);
+			System.out.println("\n\nAction found: " +method+ ", a new job should be generated, jobs = "+jobs+"\n\n");
+
 			// We have to find the block of code that this action refers to
 			if(c != ')'){
 				if (checkRDD(rddOrSc)) { // If it is applied to an RDD we have to find where and how it was created
 					generate(findBlock(rddOrSc), (DefaultMutableTreeNode) root.getChildAt(jobs), null, null);
-				} else { // If it is applied to an sc there is an error
-					throw new Exception("An action cannnot be applied to an SC");
+				} else { // If it is applied to an sc there is an error				
+					throw new Exception(method+", An action cannnot be applied to an SC");
 				}
 			} else {
 				int start = searchStartBlock(key);
 				generate(new Pair(file.substring(start, key), start), (DefaultMutableTreeNode) root.getChildAt(jobs), null, null);
 			}
-			System.out.println("\nAction found: " +method+ ", a new job should be generated, jobs = "+jobs);
 		}
 		prettyPrint(jobsList);
 		
@@ -172,9 +175,17 @@ public class Thesis {
 	public static MethodsType checkMethod(String method){
 		
 		// It is important to check first if it is a shuflle method because TEXTFILE is considered a shuffle and action in the variables and here we want it to be a shuffle
-		if(method.matches(".*By.*") // Check if the method passed will shuffle, considering that any transformation of the kind *By or *ByKey can result in shuffle
-				&& !method.equals("groupByKey")) // GroupByKey does not shuffle
-			return MethodsType.shuffle;
+		if(method.matches(".*By.*")){ // Check if the method passed will shuffle, considering that any transformation of the kind *By or *ByKey can result in shuffle
+			Boolean shuffle = true;
+			for (int i = 0; i < Variables.methodsByTransformation.length; i++) {
+				if(method.equals(Variables.methodsByTransformation[i])){
+					shuffle = false;
+					break;
+				}
+			}
+			if(shuffle)
+				return MethodsType.shuffle;		
+		}
 		else {
 			for (int i = 0; i < Variables.shuffles.length; i++) {
 				if(method.equals(Variables.shuffles[i]))
@@ -221,8 +232,9 @@ public class Thesis {
 	 * Finds the block where the rdd passed as parameter is created
 	 */
 	public static Pair findBlock(String rdd){
-		int start = findRDD(rdd);		
-		return new Pair(file.substring(start, searchEndBlock(start, 1, file)), start);
+		int start = findRDD(rdd);	
+		System.out.println("findBlock(" +rdd+") start: " +start);
+		return new Pair(file.substring(start, searchEndBlock(start, 0, file)), start);
 	}
 	
 	public static String findCache(int end, String block){
@@ -296,7 +308,28 @@ public class Thesis {
 		        listRDDs.add(var);
 			}
 		}
+		
+		// Check for RDDs created like newRDD = otherRDD
+		regex = "\\w*=";
+		List<String> aux = new ArrayList<String>();
 
+		for(String s: listRDDs){
+			String search = regex + s;
+			// Create a Pattern object
+			Pattern r = Pattern.compile(search);
+			// Now create matcher object.
+			Matcher m = r.matcher(file.replace(" ", ""));
+			
+			System.out.println(search);			
+			while(m.find()){
+		        String b =  m.group();
+		        String var = b.split("=")[0];
+				System.out.println("FIND: " +m.group()+", already: " +listRDDs.contains(var));
+		        if(!listRDDs.contains(var))
+		        	aux.add(var);
+			}			
+		}
+		listRDDs.addAll(aux);
 		for (String s : listRDDs)
 			System.out.println(">>>>>> " +s);
 	}
@@ -361,7 +394,8 @@ public class Thesis {
 				par--;
 				if (par == 0)
 					return i;
-			}
+			} else if(block.charAt(i) == ';' && par == 0)
+				return i;
 			i++;
 		}
 		return i;
@@ -373,13 +407,16 @@ public class Thesis {
 	public static int searchEndBlock(int start, int par2, String block){
 //		System.out.println("start at: " +start);
 		int i = searchEndHelper(start, block);
+		if(block.charAt(i) == ')')
+			par2++;
 		int par = par2;
 		if (i == start) {
 			return i;
 		}
+		System.out.println("searchEndBlock, Block: " +block.substring(start, i)+", par: " +par);
 		while (i < block.length()) {
 			if(block.charAt(i) == '('){
-				i = searchEndBlock(i, par+1, block); // If we find another opening parenthesis we have to reach the end of it again
+				i = searchEndBlock(i, par++, block); // If we find another opening parenthesis we have to reach the end of it again
 				break;
 			} else if (block.charAt(i) == ')')
 				par --;
@@ -433,15 +470,13 @@ public class Thesis {
 	public static void generate(Pair pair, DefaultMutableTreeNode parent, Stage child2, Integer childId){
 		String block = pair.getBlock();
 		int beggining = pair.getFirstPos();
-		/*
-		System.out.println("\n>> generate");
-		System.out.println("Beggining: " +beggining+"\n");
-		System.out.println("Block: " +block+"\n");
-		System.out.println("PARENT: ");
-		prettyPrint(child2);	
-		*/
-		
-		
+		if(jobs == 0){
+			System.out.println("\n>> generate");
+			System.out.println("Beggining: " +beggining+"\n");
+			System.out.println("Block: " +block+"\n");
+			System.out.println("PARENT: ");
+			prettyPrint(child2);	
+		}
 		String cache = "";
 		int i = 0;
 		String rdd = "";
@@ -497,16 +532,17 @@ public class Thesis {
 
 					
 					// We have to search for the child RDDs in order to put the parentRDDId
-					System.out.println("Stage: "+child2.id);
-					prettyPrint(child2);
+				
+//					System.out.println("Stage: "+child2.id);
+//					prettyPrint(child2);
 					if(child2.getRDDs().size() == 0){ // If in the stage there are still not rdds this means that the rdd will have his child in another stage
 						List<Integer> childStages = child2.getChildId();
 						for(Integer id: childStages){
 							Stage stageChild = stagesList.get(id);
-							System.out.println("Stage list id: " +id+", being search by: " +child2.id);
+//							System.out.println("Stage list id: " +id+", being search by: " +child2.id);
 							List<RDD> rddsChild = stageChild.getRDDs();
 							for(RDD rddChild: rddsChild){
-								System.out.println("Rdd child: "+rddChild.getId()+", childId: " +childId);
+//								System.out.println("Rdd child: "+rddChild.getId()+", childId: " +childId);
 								if(rddChild.getId() == childId)
 									rddChild.addParentId(rdd1.getId());
 								
@@ -530,15 +566,15 @@ public class Thesis {
 				// If it exist then it means the already existing stage has two childs, so we have to modify the already existing
 				// stage instead of creating one
 				if(check > -1){
-					
+					/*
 					System.out.println("CHECK: " +check);
 					prettyPrint(stagesList);
 					System.out.println("Parent to check");
 					prettyPrint(child2);
 					System.out.println("Parent equivalent");
-					
+					*/
 					Stage newParent = stagesList.get(check);
-					prettyPrint(newParent);
+//					prettyPrint(newParent);
 					
 					RDD lastRDD = newParent.getRDDs().get(0);
 					lastRDD.addChildId(child2.getRDDs().get(0).getChildsId());
@@ -561,10 +597,10 @@ public class Thesis {
 				} else  {
 					stagesList.put(child2.getId(), child2);
 				}
-
+				
 				parent2.addChildId(child2.getId());
 				child2 = parent2;
-				
+//				prettyPrint(stagesList);
 				// In order to be possible 
 			} else {
 
@@ -575,24 +611,21 @@ public class Thesis {
 				
 				if (childId != null){
 					rdd1.addChildId(childId);
-
-					
 					
 					// We have to search for the child RDDs in order to put the parentRDDId
-					System.out.println("Stage: "+child2.id);
-					prettyPrint(child2);
+//					System.out.println("Stage: "+child2.id);
+//					prettyPrint(child2);
 					if(child2.getRDDs().size() == 0){ // If in the stage there are still not rdds this means that the rdd will have his child in another stage
 						List<Integer> childStages = child2.getChildId();
 						for(Integer id: childStages){
 							Stage stageChild = stagesList.get(id);
-							System.out.println("Stage list id: " +id+", being search by: " +child2.id);
-							prettyPrint(stagesList);
+//							System.out.println("Stage list id: " +id+", being search by: " +child2.id);
+//							prettyPrint(stagesList);
 							List<RDD> rddsChild = stageChild.getRDDs();
 							for(RDD rddChild: rddsChild){
-								System.out.println("Rdd child: "+rddChild.getId()+", childId: " +childId);
+//								System.out.println("Rdd child: "+rddChild.getId()+", childId: " +childId);
 								if(rddChild.getId() == childId)
-									rddChild.addParentId(rdd1.getId());
-								
+									rddChild.addParentId(rdd1.getId());								
 							}
 						}						
 					} else {
@@ -602,17 +635,8 @@ public class Thesis {
 								rddChild2.addParentId(rdd1.getId());
 					}										
 				}
-
-				childId = rdd1.getId();
-				
+				childId = rdd1.getId();				
 				child2.addChild(rdd1);
-				
-				
-				
-				
-				
-				
-				
 			}
 //			System.out.println("childId: " +child2.getId()+ " in p2: " +position);
 //			System.out.println("Save childId: " +child2.getId()+ ", rddsParentsId: " +childId+ " in p2: " +position+"\n");
@@ -633,8 +657,8 @@ public class Thesis {
 				rddsParentsId.add(position, childId);
 //				System.out.println("rddsParentsId: " +childId+ " in p2: " +position);
 //				System.out.println("PARENT COMBINE: " +position);
-				System.out.println("PARENT COMBINE");
-				prettyPrint(stagesList);
+//				System.out.println("PARENT COMBINE");
+//				prettyPrint(stagesList);
 			}
 			/*
 			for (int b = 0; b < rddsParentsId.size() ; b++) {
@@ -680,8 +704,8 @@ public class Thesis {
 							generate(new Pair(subBlock, start + beggining), parents.get(p), parents2.get(position), rddsParentsId.get(position));
 						}					
 					} 
-//					else 					
-//						System.out.println("No it is not");
+					else 					
+						System.out.println("No it is not");
 					continue;
 				}
 				int pos = Integer.valueOf(forward.get(j).split("-")[0]);
@@ -787,17 +811,28 @@ public class Thesis {
 					System.out.println("Applied directly to a variable: " +cache+", childId: " +parents2.get(p).getId()+", p: " +p+", p2: " +position+ ", rddsParentsId: " +rddsParentsId.get(p)+", block: " +block);
 					*/
 					if (checkRDD(cache) || checkSC(cache)) {
-//						System.out.println("Let's recall: "+findBlock(cache));
+//						System.out.println("Let's recall: "+findBlock(cache).block);
 						generate(findBlock(cache), parents.get(p), parents2.get(position), rddsParentsId.get(position));					
 					} else {
-						System.err.println("Error in the code?");
+						System.err.println("Error in the code? " +cache+", block: " +block);
 					}
 				}
 				p++;
 				position++;
 				if (checkCombine(method))
 					position++;
-			}
+			} 
+		} else { // If there are no spark methods inside the block it may be a case of newRDD = otherRDD;
+			Pattern r = Pattern.compile("\\w*=\\w*");
+			Matcher m = r.matcher(block.replaceAll(" ", ""));
+			while(m.find()){
+				System.out.println("RDDS:" +m.group());
+				String rdd1 = m.group().split("=")[0];
+				String rdd2 = m.group().split("=")[1];
+				if(checkRDD(rdd1) && checkRDD(rdd2)){
+					generate(findBlock(rdd2), parent, child2, childId);					
+				}				
+			}			
 		}
 	}
 	
@@ -816,7 +851,7 @@ public class Thesis {
 				int oldId = stage.getId();
 				stage.setId(nStages--);
 				
-				System.out.println("Stage modified, new Id: " +stage.getId()+", oldId: " +oldId);
+//				System.out.println("Stage modified, new Id: " +stage.getId()+", oldId: " +oldId);
 				childsStagesList = updateStageschildId(stage.getId(), oldId, stage);
 				break; // There can not be more than a final stage
 			}				
@@ -824,7 +859,7 @@ public class Thesis {
 		
 		int a = 0;
 		while(!childsStagesList.isEmpty()){
-			System.out.println("A:" +a++);
+//			System.out.println("A:" +a++);
 			List<Stage> aux = new ArrayList<Stage>();
 			for (Stage stage : childsStagesList) {
 				int oldId = stage.getId();
@@ -836,55 +871,70 @@ public class Thesis {
 				}
 			}
 			for(Stage b: childsStagesList){
-				System.out.println("CHILD - Id:" +b.getId());
+//				System.out.println("CHILD - Id:" +b.getId());
 				b.setUpdatedChild(true);
 			}
 			childsStagesList = aux;
 			if(nStages < -5)
 				throw new Error("ERROR");
 		}
-		
+
+//		System.out.println("\n\n\n\n Stages ordered in bad position");
+//		prettyPrint(stagesList);
+//		System.out.println("\n\n\n\n");
+
 		// Once the stages have been renamed we want them to be in the same position as their id
-		System.out.println("Size: "+keys.size());
+//		System.out.println("Size: "+keys.size());
 		for (int i = 0; i < keys.size(); i++) {
 			Stage stage ;
 			if(stagesList.containsKey(keys.get(i)))
 				stage = stagesList.get(keys.get(i)); //Cache where i will put the stage
 			else continue;
+			
 			Stage cache = null;
 			if(stagesList.containsKey(stage.getId()))
 				cache = stagesList.get(stage.getId());
+			if(cache != null){
+//				System.out.println("Chache: " +stage.getId());
+	//			prettyPrint(cache);
+			}
 			if(keys.get(i) != stage.getId()){
+//				System.out.println("Put in: " +stage.getId()+", remove in: " +keys.get(i));
 				stagesList.put(stage.getId(), stage);
 				stagesList.remove(keys.get(i));
 			}
-			int pos = i;
+			int pos = -1;
 			while(cache != null && cache.getId() != pos){
 				Stage aux = cache;
 				pos = aux.getId();
+
 				cache = stagesList.get(pos);
+//				System.out.println("Cache: ");
+				prettyPrint(cache);
+//				System.out.println("Put in: " +pos);
 				stagesList.put(pos, aux);
 			}
 		}
 
 		for(Integer i : keys){
 			if(i >= keys.size() + (nStages+1) && stagesList.containsKey(i)){
-				System.out.println("remove: "+i);
+				System.out.println("\n\n\nremove: "+i+"\n\n\n");
 				stagesList.remove(i);				
 			}
 		}
-/*
-		System.out.println("\n\n\n\n Stages ordered withoud parents");
-		prettyPrint(stagesList);
-*/		
+		
+//		System.out.println("\n\n\n\n Stages ordered withoud parents");
+//		prettyPrint(stagesList);
+//		System.out.println("\n\n\n\n");
+
 		// Once the stages have been ordered we set the parents ids of the stages (if a stage is my child, I am his father)
 		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
 			Stage stage = entry.getValue();
 			List<Integer> childsIds = stage.getChildId();
-			System.out.println("Stage: "+stage.id);
-			prettyPrint(childsIds);
+//			System.out.println("Stage: "+stage.id);
+//			prettyPrint(childsIds);
 			for(Integer id: childsIds){
-				System.out.println("Id of a child: " +id);
+//				System.out.println("Id of a child: " +id);
 				Stage child = stagesList.get(id);
 				child.addParentId(stage.getId());
 			}
@@ -897,7 +947,7 @@ public class Thesis {
 	 */
 	public static List<Stage> updateStageschildId(int newId, int oldId, Stage stageCalling){
 		List<Stage> childsStagesList = new ArrayList<Stage>();
-		System.out.println("\nModifie stage, oldId: " +oldId+ ", newId: " +newId);
+//		System.out.println("\nModifie stage, oldId: " +oldId+ ", newId: " +newId);
 		
 		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
 			Stage stage = entry.getValue();
@@ -908,7 +958,7 @@ public class Thesis {
 //			prettyPrint(stage);
 			for(int i = 0; i < childsIds.size(); i++){
 				if(childsIds.get(i) == oldId){
-					System.out.println("Stage " +stage.getId()+ " modified childId, oldId: " +oldId+", newId: " +newId);					
+//					System.out.println("Stage " +stage.getId()+ " modified childId, oldId: " +oldId+", newId: " +newId);					
 					childsIds.remove(i);
 					if(!childsIds.contains(newId))
 						childsIds.add(i, newId);
