@@ -544,7 +544,6 @@ public class Thesis {
 					lastRDD.addChildId(child2.getRDDs().get(0).getChildsId());
 					newParent.addChildId(child2.getChildId());
 					
-					
 					stagesList.put(newParent.getId(), newParent);
 					
 					// If the new Parent already exist we have to modify in the child the parent Id					
@@ -558,8 +557,10 @@ public class Thesis {
 							}
 						}
 					}
-					
-				} else  stagesList.put(child2.getId(), child2);
+					return; // Since the stage already exists the dependecies after this stage are already created
+				} else  {
+					stagesList.put(child2.getId(), child2);
+				}
 
 				parent2.addChildId(child2.getId());
 				child2 = parent2;
@@ -585,6 +586,7 @@ public class Thesis {
 						for(Integer id: childStages){
 							Stage stageChild = stagesList.get(id);
 							System.out.println("Stage list id: " +id+", being search by: " +child2.id);
+							prettyPrint(stagesList);
 							List<RDD> rddsChild = stageChild.getRDDs();
 							for(RDD rddChild: rddsChild){
 								System.out.println("Rdd child: "+rddChild.getId()+", childId: " +childId);
@@ -820,7 +822,9 @@ public class Thesis {
 			}				
 		}			
 		
+		int a = 0;
 		while(!childsStagesList.isEmpty()){
+			System.out.println("A:" +a++);
 			List<Stage> aux = new ArrayList<Stage>();
 			for (Stage stage : childsStagesList) {
 				int oldId = stage.getId();
@@ -830,6 +834,10 @@ public class Thesis {
 					if(!aux.contains(stage2)) // If a Stages has already been added to be modified we don't have to add it twice
 						aux.add(stage2);
 				}
+			}
+			for(Stage b: childsStagesList){
+				System.out.println("CHILD - Id:" +b.getId());
+				b.setUpdatedChild(true);
 			}
 			childsStagesList = aux;
 			if(nStages < -5)
@@ -865,7 +873,10 @@ public class Thesis {
 				stagesList.remove(i);				
 			}
 		}
-		
+/*
+		System.out.println("\n\n\n\n Stages ordered withoud parents");
+		prettyPrint(stagesList);
+*/		
 		// Once the stages have been ordered we set the parents ids of the stages (if a stage is my child, I am his father)
 		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
 			Stage stage = entry.getValue();
@@ -886,20 +897,21 @@ public class Thesis {
 	 */
 	public static List<Stage> updateStageschildId(int newId, int oldId, Stage stageCalling){
 		List<Stage> childsStagesList = new ArrayList<Stage>();
-		System.out.println("Modifie stage, oldId: " +oldId+ ", newId: " +newId);
-
+		System.out.println("\nModifie stage, oldId: " +oldId+ ", newId: " +newId);
+		
 		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
 			Stage stage = entry.getValue();
-			if(stage == stageCalling) continue;
+			if(stage == stageCalling || (stage.updatedChild != null && stage.updatedChild)) continue;
 			// Update in parents the childId
 			List<Integer> childsIds = stage.getChildId();
 //			System.out.println("Stage checking:");
 //			prettyPrint(stage);
 			for(int i = 0; i < childsIds.size(); i++){
 				if(childsIds.get(i) == oldId){
-//					System.out.println("Stage " +stage.getId()+ " modified childId, oldId: " +oldId+", newId: " +newId);					
+					System.out.println("Stage " +stage.getId()+ " modified childId, oldId: " +oldId+", newId: " +newId);					
 					childsIds.remove(i);
-					childsIds.add(i, newId);
+					if(!childsIds.contains(newId))
+						childsIds.add(i, newId);
 					childsStagesList.add(stage);
 				}
 			}
@@ -914,6 +926,7 @@ public class Thesis {
 		private List<RDD> rdds;
 		private List<Integer> childId;
 		private List<Integer> parentId;
+		private Boolean updatedChild;
 
 		public Stage(){
 			id = stages++;
@@ -953,6 +966,9 @@ public class Thesis {
 		}
 		public void setId(int id){
 			this.id = id;
+		}
+		public void setUpdatedChild(Boolean update){
+			updatedChild = update;
 		}
 		
 	}
