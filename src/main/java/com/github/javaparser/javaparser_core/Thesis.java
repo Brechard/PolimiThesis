@@ -413,7 +413,6 @@ public class Thesis {
 		if (i == start) {
 			return i;
 		}
-		System.out.println("searchEndBlock, Block: " +block.substring(start, i)+", par: " +par);
 		while (i < block.length()) {
 			if(block.charAt(i) == '('){
 				i = searchEndBlock(i, par++, block); // If we find another opening parenthesis we have to reach the end of it again
@@ -639,13 +638,13 @@ public class Thesis {
 				child2.addChild(rdd1);
 			}
 //			System.out.println("childId: " +child2.getId()+ " in p2: " +position);
-//			System.out.println("Save childId: " +child2.getId()+ ", rddsParentsId: " +childId+ " in p2: " +position+"\n");
+			System.out.println("Save childId: " +child2.getId()+ ", rddsParentsId: " +childId+ " in p2: " +position+"\n");
 			parents.add(p++, parent);
 			parents2.add(position, child2);
 			rddsParentsId.add(position, childId);
-//			prettyPrint(stagesList);
-//			System.out.println("PARENT: " +position);
-//			prettyPrint(child2);
+			prettyPrint(stagesList);
+			System.out.println("PARENT: " +position);
+			prettyPrint(child2);
 			if (type == MethodsType.shuffle && checkCombine(method)) {
 				position++;
 				Stage parentNew = new Stage();
@@ -655,10 +654,10 @@ public class Thesis {
 				
 				parents2.add(position, parentNew);
 				rddsParentsId.add(position, childId);
-//				System.out.println("rddsParentsId: " +childId+ " in p2: " +position);
-//				System.out.println("PARENT COMBINE: " +position);
-//				System.out.println("PARENT COMBINE");
-//				prettyPrint(stagesList);
+				System.out.println("rddsParentsId: " +childId+ " in p2: " +position);
+				System.out.println("PARENT COMBINE: " +position);
+				System.out.println("PARENT COMBINE");
+				prettyPrint(parentNew);
 			}
 			/*
 			for (int b = 0; b < rddsParentsId.size() ; b++) {
@@ -678,34 +677,48 @@ public class Thesis {
 			for (int j = forward.size(); j >= 0; j--) {
 				
 				if (j == forward.size() && forward.size() > 0) {
+					
 					int pos = Integer.valueOf(forward.get(j - 1).split("-")[0]);
 					String method = forward.get(j - 1).split("-")[1];
 					int start = pos + method.length();
+					MethodsType type = checkMethod(method);
+
 //					System.out.println("Second loop, check if last method: "+method+", is combine, start: " +block.charAt(start)+ ", +1: " +block.charAt(start + 1));
 					if(block.charAt(start + 1) != ')'){ // The last method of the block is combine Method
 						int endBlock = searchEndBlock(start, 1, block);
 						cache = findCache(endBlock, block);
-						position = position + 2;
+						System.out.println("position cero");
+						position = position + 1;
 						changedPosition = true;
+						prettyPrint(parents2);
+						prettyPrint(stagesList);
+						System.out.println("\n\nChanged position: " +position+ "\n\n ");
 						if (checkRDD(cache) || checkSC(cache)) { 
+							if(type != MethodsType.shuffle) position = 0; // If the method is not a shuffle the following methods have to be on the same stage as this method
 //							System.out.println("Combine method with variable: " +cache+", childId: " +parents2.get(position).getId()+", in 1");
 //							if (changedPosition)
 //								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
 							generate(findBlock(cache), parents.get(p), parents2.get(position), rddsParentsId.get(position));					
 						} else {
 							if(!checkCombine(method)){
-								position = position - 2;
+								System.out.println("\n\nDes Changed position\n\n ");
+								position = 0;
 								changedPosition  = false;
 							}
 //							if (changedPosition)
 //								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
 							String subBlock = block.substring(start, end +1);
-//							System.out.println("Written combine method: " +subBlock+", childId: " +parents2.get(position).getId()+", in p2: " +position+ ", p: " +p+ ", rddsParentsId: " +rddsParentsId.get(position));
+							System.out.println("Written combine method: " +subBlock+", childId: " +parents2.get(position).getId()+", in p2: " +position+ ", p: " +p+ ", rddsParentsId: " +rddsParentsId.get(position));
 							generate(new Pair(subBlock, start + beggining), parents.get(p), parents2.get(position), rddsParentsId.get(position));
 						}					
 					} 
 					else 					
 						System.out.println("No it is not");
+					
+					if (changedPosition) {
+						position = 0;
+						changedPosition = false;
+					}
 					continue;
 				}
 				int pos = Integer.valueOf(forward.get(j).split("-")[0]);
@@ -715,14 +728,14 @@ public class Thesis {
 					String methodBefore1 = forward.get(j - 1).split("-")[1];
 					type = checkMethod(methodBefore1);
 				}
-//				System.out.println("Second loop, method: " +method+ ", p: " +p+ ", rddsParentsId: " +childId+", position: " +position+ ", block:" +block);
+				System.out.println("Second loop, method: " +method+ ", p: " +p+ ", rddsParentsId: " +childId+", position: " +position+ ", block:" +block);
 
 
 				if(block.charAt(pos - 2) == ')'){ // Method not applied directly to a variable, we have to analyze the interior of the parenthesis
 					cache = findCache(pos, block);
-//					System.out.println("Cache: " +cache+", p: " +p+ ", rddsParentsId: " +childId);
+					System.out.println("Cache: " +cache+", p: " +p+ ", rddsParentsId: " +childId);
 					if (block.charAt(pos - 3) == '(') { // There is nothing inside the parenthesis, the method is applied to the result of another method
-//						System.out.println("Nothing to do here");
+						System.out.println("Nothing to do here");
 					} else { // Inside of the parenthesis there is something what means that the method before (writing) may be a combine method
 						// If it is a combine method we have to add one position because we saved the stages there
 						if (type == MethodsType.shuffle) {
@@ -735,7 +748,7 @@ public class Thesis {
 							String methodBefore ="";
 							if (j - 1 >= 0) {
 								methodBefore = forward.get(j - 1).split("-")[1];
-//								System.out.println("Combine method with variable: " +cache+", methodBefore: " +methodBefore+", combine: " +checkCombine(methodBefore));
+								System.out.println("Combine method with variable: " +cache+", methodBefore: " +methodBefore+", combine: " +checkCombine(methodBefore));
 								if(!checkCombine(methodBefore) && changedPosition){ // If it was not a combine method we have to undo the addition
 									position = position - 2;
 									changedPosition = false;
@@ -750,10 +763,10 @@ public class Thesis {
 									changedPosition = false;
 								}
 							}
-//							System.out.println("Combine method with variable: " +cache+", in p2: " +position+", type: " +checkMethod(methodBefore));
+							System.out.println("Combine method with variable: " +cache+", in p2: " +position+", type: " +checkMethod(methodBefore));
 //							if (changedPosition)
 //								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
-//							System.out.println("Combine method with variable: " +cache+", j: " +j+", childId: " +parents2.get(position).getId()+", in p2: " +position+ ", p: " +p+ ", rddsParentsId: " +rddsParentsId.get(position)+", position: "+position);
+							System.out.println("Combine method with variable: " +cache+", j: " +j+", childId: " +parents2.get(position).getId()+", in p2: " +position+ ", p: " +p+ ", rddsParentsId: " +rddsParentsId.get(position)+", position: "+position);
 							generate(findBlock(cache), parents.get(p), parents2.get(position), rddsParentsId.get(position));					
 						} else {
 							if (j - 1 >= 0) {
@@ -780,7 +793,7 @@ public class Thesis {
 //								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
 							int start = searchStartParenthesisBlock(block, pos);
 							String subBlock = block.substring(start, pos);
-//							System.out.println("Written combine method: " +subBlock+", childId: " +parents2.get(position).getId()+", in p2: " +position+ ", rddsParentsId: " +rddsParentsId.get(position));
+							System.out.println("Written combine method: " +subBlock+", childId: " +parents2.get(position).getId()+", in p2: " +position+ ", rddsParentsId: " +rddsParentsId.get(position));
 							generate(new Pair(subBlock, start), parents.get(p), parents2.get(position), rddsParentsId.get(position));
 						}	
 						if (changedPosition) {
@@ -808,10 +821,10 @@ public class Thesis {
 					System.out.println("Changed position: " +changedPosition);
 					System.out.println("Position: " +position);
 					System.out.println("Applied directly to a variable: " +cache+", childId2: " +parents2.get(position).getId());
-					System.out.println("Applied directly to a variable: " +cache+", childId: " +parents2.get(p).getId()+", p: " +p+", p2: " +position+ ", rddsParentsId: " +rddsParentsId.get(p)+", block: " +block);
 					*/
+					System.out.println("Applied directly to a variable: " +cache+", childId: " +parents2.get(p).getId()+", p: " +p+", p2: " +position+ ", rddsParentsId: " +rddsParentsId.get(p)+", block: " +block);
 					if (checkRDD(cache) || checkSC(cache)) {
-//						System.out.println("Let's recall: "+findBlock(cache).block);
+						System.out.println("Let's recall: "+findBlock(cache).block);
 						generate(findBlock(cache), parents.get(p), parents2.get(position), rddsParentsId.get(position));					
 					} else {
 						System.err.println("Error in the code? " +cache+", block: " +block);
@@ -827,11 +840,14 @@ public class Thesis {
 			Matcher m = r.matcher(block.replaceAll(" ", ""));
 			while(m.find()){
 				System.out.println("RDDS:" +m.group());
-				String rdd1 = m.group().split("=")[0];
-				String rdd2 = m.group().split("=")[1];
-				if(checkRDD(rdd1) && checkRDD(rdd2)){
-					generate(findBlock(rdd2), parent, child2, childId);					
-				}				
+				String[] splited = m.group().split("=");
+				if(splited.length > 1){
+					String rdd1 = m.group().split("=")[0];
+					String rdd2 = m.group().split("=")[1];
+					if(checkRDD(rdd1) && checkRDD(rdd2)){
+						generate(findBlock(rdd2), parent, child2, childId);					
+					}				
+				}
 			}			
 		}
 	}
