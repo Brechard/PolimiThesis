@@ -1,9 +1,5 @@
 package com.github.javaparser.javaparser_core;
 
-import java.io.IOException;
-
-import com.github.javaparser.javaparser_core.Variables.MethodsType;
-
 public class Variables 
 {
 	public enum MethodsType{
@@ -40,6 +36,6 @@ public class Variables
 
 	// Any method of the kind *By or *ByKey can result in shuffle, that's why here we will place the By method's that we know are transformation and will not create a new stage
 	public static String[] methodsByTransformation = {"combineByKey", "groupByKey" };
-	
+		
 }
 

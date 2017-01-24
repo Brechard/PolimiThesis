@@ -37,6 +37,7 @@ public class Thesis {
 	private static Map<Integer, Stage> stagesList = new HashMap<Integer, Stage>();
 	private static int nStages;
 	private static List<String> ifs = new ArrayList<String>();
+	private static List<String> loops = new ArrayList<String>();
 
 	public static void main(String[] args) throws Exception {
 		jobs = 0; stages = 0; rdds = 0;
@@ -62,7 +63,7 @@ public class Thesis {
 
 		root = new DefaultMutableTreeNode("Jobs");
 		
-		findIfs();
+		findIfsAndLoops();
 		findRDDs();
 		findSC();		
 		
@@ -143,7 +144,8 @@ public class Thesis {
 		
 		prettyPrint(jobsList);
 		
-		System.out.println(ifs);
+		System.out.println("ifs   -> " +ifs);
+		System.out.println("loops -> " +loops);
 	}
 	
 	public static boolean checkCombine(String method){
@@ -178,14 +180,16 @@ public class Thesis {
 	}
 	
 	private static String condition = ""; // The condition is a global variable in order to save the value for the else, the value is only updated when there are spark methods inside
-	public static void checkIf_ContainsSparkMethods(int start, String ifOrElse){
-		int end = start;
-		if(ifOrElse == "if" || ifOrElse == "else if"){ // Search the beginning of the condition
+	public static void checkIfContainsSparkMethods(int start, String ifOrElseOrLoop){
+
+		int endCondition = start;
+		if(!ifOrElseOrLoop.equals("else")){ // Search the beginning of the condition
 			while(file.charAt(start) != '(' && start < file.length())
 				start++;
-			end = searchEndParenthesis(start, file);
+			endCondition = searchEndParenthesis(start, file);
 		}
 		
+		int end = endCondition;
 		Character c = file.charAt(end);
 		while((c != '{' && c != '\n' && !Character.isLetterOrDigit(c) && c != '_') && end < file.length()){
 			end++;
@@ -197,28 +201,42 @@ public class Thesis {
 		else
 			endIf = searchEndBlock(end, 0, file);			
 		
-		System.out.println(start+"-" +endIf+", " +ifOrElse+": end: " +end);
 		List<String> methods = findMethods(file.substring(end, endIf), end);
 		if(methods.size() != 0){
-			if(ifOrElse != "else") condition = file.substring(start + 1, end);
-			ifs.add(start+ "-" +ifOrElse+ "(" +condition+ ")-" +endIf);	
+			if(!ifOrElseOrLoop.equals("else")) condition = file.substring(start + 1, endCondition);
+			if(ifOrElseOrLoop.equals("while") || ifOrElseOrLoop.equals("for"))
+				loops.add(start+ "-" +ifOrElseOrLoop+ "(" +condition+ ")-" +endIf);
+			else
+				ifs.add(start+ "-" +ifOrElseOrLoop+ "(" +condition+ ")-" +endIf);	
 		}
-		System.out.println(start+"-" +endIf+", " +ifOrElse+": " +file.substring(start, endIf));
+		System.out.println(start+"-" +endIf+", " +ifOrElseOrLoop+": " +file.substring(start, endIf));
 	}
 	
-	public static PairInsideIf checkInsideIf(int pos){
+	public static PairInside checkInsideIf(int pos){
 		for(String s: ifs){
 			String[] splitted = s.split("-");
 			int start = Integer.valueOf(splitted[0]);
 			String condition = splitted[1];
 			int end = Integer.valueOf(splitted[2]);
 			if((start <= pos) && (pos <= end)){
-				return new PairInsideIf(true, condition);
+				return new PairInside(true, condition);
 			}
 		}		
-		return new PairInsideIf(false, "");
+		return new PairInside(false, "");
 	}
 
+	public static PairInside checkInsideLoop(int pos){
+		for(String s: loops){
+			String[] splitted = s.split("-");
+			int start = Integer.valueOf(splitted[0]);
+			String condition = splitted[1];
+			int end = Integer.valueOf(splitted[2]);
+			if((start <= pos) && (pos <= end)){
+				return new PairInside(true, condition);
+			}
+		}		
+		return new PairInside(false, "");
+	}
 	
 	
 	// Check if the method receive is a shuflle method, an action, a transformation or is some method that is not from spark
@@ -320,27 +338,32 @@ public class Thesis {
 		}
 		return cache;			
 	}
+	
 	private static Boolean beforeElse = false;
 	private static int posElse;
-	public static void findIfs(){
+	public static void findIfsAndLoops(){
 		Pattern r = Pattern.compile("\\w*");
 		Matcher m = r.matcher(file);
 		while(m.find()){
 			if(m.group().replace(" " ,"").equals(""))
 				continue;
-			if (m.group().equals("if")){
+			String s = m.group();
+			int i = m.start();
+			if (s.equals("if")){
 				if(beforeElse){
 					beforeElse = false;
-					checkIf_ContainsSparkMethods(m.start(), "else if");	
+					checkIfContainsSparkMethods(i, "else if");	
 				} else
-					checkIf_ContainsSparkMethods(m.start(), "if");	
-			} else if (m.group().equals("else")){
+					checkIfContainsSparkMethods(i, s);	
+			} else if (s.equals("else")){
 				beforeElse = true;
-				posElse = m.start();
+				posElse = i;
 			} else if(beforeElse){
 				beforeElse = false;
-				checkIf_ContainsSparkMethods(posElse, "else");					
-			}
+				checkIfContainsSparkMethods(posElse, "else");					
+			} 			
+			if(s.equals("for") || s.equals("while"))				
+				checkIfContainsSparkMethods(i, s);	
 		}		
 	}
 	
@@ -633,9 +656,13 @@ public class Thesis {
 //				child2.addParentId(parent2.getId());
 
 				RDD rdd1 = new RDD(method+" at char " +pos);
-				PairInsideIf inside = checkInsideIf(Integer.valueOf(pos));
+				PairInside inside = checkInsideIf(Integer.valueOf(pos));
 				if(inside.inside)
 					rdd1.setCondition(inside.condition);
+				inside = checkInsideLoop(Integer.valueOf(pos));
+				if(inside.inside)
+					rdd1.setLoop(inside.condition);
+				
 //				RDD rdd2 = new RDD(method+" at char " +pos);
 								
 				if (childId != null){
@@ -712,9 +739,12 @@ public class Thesis {
 
 				addChild("- " +method, parent);
 				RDD rdd1 = new RDD(method+" at char " +pos);
-				PairInsideIf inside = checkInsideIf(Integer.valueOf(pos));
+				PairInside inside = checkInsideIf(Integer.valueOf(pos));
 				if(inside.inside)
 					rdd1.setCondition(inside.condition);
+				inside = checkInsideLoop(Integer.valueOf(pos));
+				if(inside.inside)
+					rdd1.setLoop(inside.condition);
 //				rdd1.addchildId(child2.getId());
 				if (childId != null){
 					rdd1.addChildId(childId);					
@@ -1164,6 +1194,7 @@ public class Thesis {
 		private List<Integer> childsIds;
 		private List<Integer> parentsIds;
 		private String condition;
+		private String loop;
 		
 		public RDD(String callSite){
 			this.callSite = callSite;
@@ -1210,6 +1241,9 @@ public class Thesis {
 		public void setCondition(String condition){
 			this.condition = condition;
 		}
+		public void setLoop(String loop){
+			this.loop = loop;
+		}
 	}	
 	
 	public static class Pair{
@@ -1230,11 +1264,11 @@ public class Thesis {
 	    }
 	}
 	
-	public static class PairInsideIf{
+	public static class PairInside{
 	    private final Boolean inside;
 	    private final String condition;
 
-	    public PairInsideIf(Boolean inside, String condition) {
+	    public PairInside(Boolean inside, String condition) {
 	        this.inside = inside;
 	        this.condition = condition;
 	    }
