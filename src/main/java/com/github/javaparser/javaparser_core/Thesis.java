@@ -3,15 +3,12 @@ package com.github.javaparser.javaparser_core;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -19,7 +16,6 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseException;
 import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.javaparser_core.Thesis.Stage;
 import com.github.javaparser.javaparser_core.Variables.MethodsType;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -34,7 +30,6 @@ public class Thesis {
 	private static Set<String> listRDDs = new HashSet<String>();
 	private static Set<String> listSC = new HashSet<String>();
 	
-	private static TreeMap<Integer, String> map = new TreeMap<Integer, String>(Collections.reverseOrder());
 	private static List<String> actionList = new ArrayList<String>();
 	
 	private static DefaultMutableTreeNode root;
@@ -497,8 +492,6 @@ public class Thesis {
 			prettyPrint(child2);	
 		}
 		String cache = "";
-		int i = 0;
-		String rdd = "";
 		List<String> forward = new ArrayList<String>(); // The string will be: position - method, that way we don't need to use a TreeMap that is very slow		
 		List<DefaultMutableTreeNode> parents = new ArrayList<DefaultMutableTreeNode>();
 		List<Stage> parents2 = new ArrayList<Stage>();
@@ -536,20 +529,16 @@ public class Thesis {
 			System.out.println("Received Method: " +method+ ", type: " +checkMethod(method)+", childId: " +child2.getId()+", rddsParentsId: " +childId+", pos: " +pos);
 			Stage childCache = child2;
 			MethodsType type = checkMethod(method);
-			if (type == MethodsType.shuffle){
+			if (type == MethodsType.shuffle){ // If the method is shuffle, it means we have to finish the current stage, add it to the list and create a new one with dependency for the actual one
 				parent = addChild("+ " +method, parent);
 				Stage parent2 = new Stage();
 //				child2.addParentId(parent2.getId());
 
 				RDD rdd1 = new RDD(method+" at char " +pos);
 //				RDD rdd2 = new RDD(method+" at char " +pos);
-				
-
-				
+								
 				if (childId != null){
 					rdd1.addChildId(childId);
-
-					
 					// We have to search for the child RDDs in order to put the parentRDDId
 				
 //					System.out.println("Stage: "+child2.id);
@@ -563,8 +552,7 @@ public class Thesis {
 							for(RDD rddChild: rddsChild){
 //								System.out.println("Rdd child: "+rddChild.getId()+", childId: " +childId);
 								if(rddChild.getId() == childId)
-									rddChild.addParentId(rdd1.getId());
-								
+									rddChild.addParentId(rdd1.getId());								
 							}
 						}						
 					} else {
@@ -573,9 +561,7 @@ public class Thesis {
 							if(rddChild2.getId() == childId)
 								rddChild2.addParentId(rdd1.getId());
 					}										
-				}
-
-				
+				}				
 				childId = rdd1.getId();
 				child2.addChild(rdd1);
 				
@@ -626,11 +612,8 @@ public class Thesis {
 				addChild("- " +method, parent);
 				RDD rdd1 = new RDD(method+" at char " +pos);
 //				rdd1.addchildId(child2.getId());
-
-				
 				if (childId != null){
-					rdd1.addChildId(childId);
-					
+					rdd1.addChildId(childId);					
 					// We have to search for the child RDDs in order to put the parentRDDId
 //					System.out.println("Stage: "+child2.id);
 //					prettyPrint(child2);
@@ -847,9 +830,12 @@ public class Thesis {
 					System.out.println("Applied directly to a variable: " +cache+", childId2: " +parents2.get(position).getId());
 					*/
 					System.out.println("Applied directly to a variable: " +cache+", childId: " +parents2.get(p).getId()+", p: " +p+", p2: " +position+ ", rddsParentsId: " +rddsParentsId.get(p)+", block: " +block);
-					if (checkRDD(cache) || checkSC(cache)) {
-						System.out.println("Let's recall: "+findBlock(cache, posReal));
+					if (checkRDD(cache)) {
+						System.out.println("Let's recall, block: "+findBlock(cache, posReal));
 						generate(findBlock(cache, posReal), parents.get(p), parents2.get(position), rddsParentsId.get(position));					
+					} else if(checkSC(cache)) { // If the method is applied directly to an SC it means the stage finishes here so we have to add it to the stageList
+						System.out.println("Method applied to a SC, put in the stageList");
+						stagesList.put(parents2.get(position).getId(), parents2.get(position));											
 					} else {
 						System.err.println("Error in the code? " +cache+", block: " +block);
 					}
@@ -900,7 +886,6 @@ public class Thesis {
 			}				
 		}			
 		
-		int a = 0;
 		while(!childsStagesList.isEmpty()){
 //			System.out.println("A:" +a++);
 			List<Stage> aux = new ArrayList<Stage>();

@@ -25,11 +25,10 @@ public class Variables
 				, "substract", "cartesian"
 
 				
-				,"combineByKey", "mapToPair","textFile"};
+				,"parallelize","combineByKey", "mapToPair","textFile"};
 	
-	// TextFile may not be exactly a shuffle but it creates a new stage that is why we will consider it as a shuffle method and also transformation 
 	// The important here is not if the method is really a shuffle, only if it creates a new stage because this is the use of this
-	public static String[] shuffles = { "repartition", "cogroup", "distinct", "leftOuterJoin", "rightOuterJoin","sortByKey", "textFile"};
+	public static String[] shuffles = { "repartition", "cogroup", "distinct", "leftOuterJoin", "rightOuterJoin","sortByKey", "join"};
 		
 	public static String jsonString = "";
 	public static String JSONPath = "methods.json";
