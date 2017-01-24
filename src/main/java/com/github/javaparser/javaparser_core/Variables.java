@@ -10,14 +10,15 @@ public class Variables
 		action, transformation, shuffle, others
 	}
 	
-	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/SparkJoins.java";	
+	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/BasicConditionalTest.java";	
+//	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/SparkJoins.java";	
 	public static String pathJSON = "/home/rodrigo/workspace/output.json";	
 
 	public static String[] actions = 
 		{ "reduce", "collect", "count", "first", "take", "takeSample", "takeOrdered","saveAsTextFile","saveAsSequenceFile", "saveAsObjectFile","countByKey","foreach"
 				
 		
-				,"collectAsMap"};
+				,"collectAsMap","aggregate"};
 	
 	public static String[] transformations = 
 		{ "map", "filter", "flatMap", "mapPartitions", "mapPartitionsWithIndex", "sample", "union", "intersection", "distinct", "groupByKey", "reduceByKey",

@@ -36,6 +36,7 @@ public class Thesis {
 	private static List<Map<Integer, Stage>> jobsList = new ArrayList<Map<Integer, Stage>>();
 	private static Map<Integer, Stage> stagesList = new HashMap<Integer, Stage>();
 	private static int nStages;
+	private static List<String> ifs = new ArrayList<String>();
 
 	public static void main(String[] args) throws Exception {
 		jobs = 0; stages = 0; rdds = 0;
@@ -61,6 +62,7 @@ public class Thesis {
 
 		root = new DefaultMutableTreeNode("Jobs");
 		
+		findIfs();
 		findRDDs();
 		findSC();		
 		
@@ -141,6 +143,7 @@ public class Thesis {
 		
 		prettyPrint(jobsList);
 		
+		System.out.println(ifs);
 	}
 	
 	public static boolean checkCombine(String method){
@@ -151,23 +154,72 @@ public class Thesis {
 		return false;
 	}
 	
-	public static boolean checkRDD(String word){
-//		System.out.println("checkRDD: " +word);
-		for(String s: listRDDs){
-			if (s.equals(word)) 
-				return true;
+	public static int checkExistence(Stage stage){
+		List<RDD> rdds = stage.getRDDs();
+		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
+			Stage stage1 = entry.getValue();
+			if (stage1.id == stage.id)
+				continue;
+			List<RDD> rdds1 = stage1.getRDDs();
+			int equal = 0;
+			for (int i = 0; i < rdds1.size(); i++) {
+				String callsite = rdds1.get(i).callSite;
+				if (rdds.size() > i && callsite.equals(rdds.get(i).callSite)) 
+					continue;
+				else equal++;
+			}
+			if (equal == 0 && rdds.size() == rdds1.size()) {
+				return stage1.id;
+			}
 		}
-		return false;
+		
+		
+		return -1;
 	}
 	
-	public static boolean checkSC(String word){
-//		System.out.println("checkSC: " +word);
-		for(String s: listSC){
-			if (s.equals(word)) 
-				return true;
+	private static String condition = ""; // The condition is a global variable in order to save the value for the else, the value is only updated when there are spark methods inside
+	public static void checkIf_ContainsSparkMethods(int start, String ifOrElse){
+		int end = start;
+		if(ifOrElse == "if" || ifOrElse == "else if"){ // Search the beginning of the condition
+			while(file.charAt(start) != '(' && start < file.length())
+				start++;
+			end = searchEndParenthesis(start, file);
 		}
-		return false;
+		
+		Character c = file.charAt(end);
+		while((c != '{' && c != '\n' && !Character.isLetterOrDigit(c) && c != '_') && end < file.length()){
+			end++;
+			c = file.charAt(end);
+		}
+		int endIf;
+		if(c == '{') // We have to find where it ends
+			endIf = searchEndCurlyBracket(end, file);
+		else
+			endIf = searchEndBlock(end, 0, file);			
+		
+		System.out.println(start+"-" +endIf+", " +ifOrElse+": end: " +end);
+		List<String> methods = findMethods(file.substring(end, endIf), end);
+		if(methods.size() != 0){
+			if(ifOrElse != "else") condition = file.substring(start + 1, end);
+			ifs.add(start+ "-" +ifOrElse+ "(" +condition+ ")-" +endIf);	
+		}
+		System.out.println(start+"-" +endIf+", " +ifOrElse+": " +file.substring(start, endIf));
 	}
+	
+	public static PairInsideIf checkInsideIf(int pos){
+		for(String s: ifs){
+			String[] splitted = s.split("-");
+			int start = Integer.valueOf(splitted[0]);
+			String condition = splitted[1];
+			int end = Integer.valueOf(splitted[2]);
+			if((start <= pos) && (pos <= end)){
+				return new PairInsideIf(true, condition);
+			}
+		}		
+		return new PairInsideIf(false, "");
+	}
+
+	
 	
 	// Check if the method receive is a shuflle method, an action, a transformation or is some method that is not from spark
 	public static MethodsType checkMethod(String method){
@@ -202,27 +254,43 @@ public class Thesis {
 		return MethodsType.others;
 	}
 	
-	public static int checkExistence(Stage stage){
-		List<RDD> rdds = stage.getRDDs();
-		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
-			Stage stage1 = entry.getValue();
-			if (stage1.id == stage.id)
-				continue;
-			List<RDD> rdds1 = stage1.getRDDs();
-			int equal = 0;
-			for (int i = 0; i < rdds1.size(); i++) {
-				String callsite = rdds1.get(i).callSite;
-				if (rdds.size() > i && callsite.equals(rdds.get(i).callSite)) 
-					continue;
-				else equal++;
-			}
-			if (equal == 0 && rdds.size() == rdds1.size()) {
-				return stage1.id;
+	public static boolean checkRDD(String word){
+//		System.out.println("checkRDD: " +word);
+		for(String s: listRDDs){
+			if (s.equals(word)) 
+				return true;
+		}
+		return false;
+	}
+	
+	public static boolean checkSC(String word){
+//		System.out.println("checkSC: " +word);
+		for(String s: listSC){
+			if (s.equals(word)) 
+				return true;
+		}
+		return false;
+	}
+
+	/*
+	 * Find the spark methods inside the block sent but not considering those inside parenthesis
+	 * The string inside the list will be: positionInBlock - method - positionInFile
+	 * @param beginnning Integer that tells the position of the first letter of the block in the file string
+	 */
+	public static List<String> findMethods(String block, int beginning){
+		List<String> methods = new ArrayList<String>();
+		Pattern r1 = Pattern.compile("\\w*");
+		Matcher m1 = r1.matcher(block);
+		int end = 0;
+		while (m1.find()) {
+			if ((m1.start() - 1) >= 0 && block.charAt(m1.start() - 1) == '.' && checkMethod(m1.group()) != MethodsType.others) { // Method found
+				if (m1.start() > end) {
+					methods.add(String.valueOf(m1.start()) +"-"+ m1.group() +"-"+ String.valueOf(m1.start() + beginning));
+					end = searchEndParenthesis(m1.end(), block); // We search only the methods in the main block, not inside the parenthesis
+				}
 			}
 		}
-		
-		
-		return -1;
+		return methods;
 	}
 	
 
@@ -252,6 +320,30 @@ public class Thesis {
 		}
 		return cache;			
 	}
+	private static Boolean beforeElse = false;
+	private static int posElse;
+	public static void findIfs(){
+		Pattern r = Pattern.compile("\\w*");
+		Matcher m = r.matcher(file);
+		while(m.find()){
+			if(m.group().replace(" " ,"").equals(""))
+				continue;
+			if (m.group().equals("if")){
+				if(beforeElse){
+					beforeElse = false;
+					checkIf_ContainsSparkMethods(m.start(), "else if");	
+				} else
+					checkIf_ContainsSparkMethods(m.start(), "if");	
+			} else if (m.group().equals("else")){
+				beforeElse = true;
+				posElse = m.start();
+			} else if(beforeElse){
+				beforeElse = false;
+				checkIf_ContainsSparkMethods(posElse, "else");					
+			}
+		}		
+	}
+	
 	
 	/*
 	 * Method that finds where an specific RDD is created
@@ -260,7 +352,7 @@ public class Thesis {
 		List<Integer> positions = new ArrayList<Integer>();
         int length = s.length();
         int i = 1;
-		// Since the actual position sent is the beggining of the method aplied to it, and we want to avoid to find the same line as we were just send we have to consider that this line could be s = s.method
+		// Since the actual position sent is the beginning of the method aplied to it, and we want to avoid to find the same line as we were just send we have to consider that this line could be s = s.method
 		int end = actualPos - length*2 - 6;
         System.out.println(">> findRDD: " +s+", actualPos: " +actualPos+ ", file: " +file.length()+ ", end "+end);
         
@@ -397,8 +489,23 @@ public class Thesis {
 		return child;
 	}
 	
+	public static int searchEndCurlyBracket(int start, String block){
+		int i = start;
+		int par = 0;
+		while (i < block.length()) {
+			if(block.charAt(i)=='{')
+				par++;
+			else if  (block.charAt(i)=='}'){
+				par--;
+				if (par == 0)
+					return i;
+			}
+			i++;
+		}
+		return i;
+	}
 	
-	public static int searchEndHelper(int start, String block){
+	public static int searchEndParenthesis(int start, String block){
 		int i = start;
 		int par = 0;
 		while (i < block.length()) {
@@ -420,7 +527,7 @@ public class Thesis {
 	 */
 	public static int searchEndBlock(int start, int par2, String block){
 //		System.out.println("start at: " +start);
-		int i = searchEndHelper(start, block);
+		int i = searchEndParenthesis(start, block);
 		if(block.charAt(i) == ')')
 			par2++;
 		int par = par2;
@@ -483,32 +590,23 @@ public class Thesis {
 	public static void generate(List<Pair> pairs, DefaultMutableTreeNode parent, Stage child2, Integer childId){
 		Pair pair = pairs.get(pairs.size() - 1);
 		String block = pair.getBlock();
-		int beggining = pair.getFirstPos();
+		int beginning = pair.getFirstPos();
 		if(jobs == 0){
 			System.out.println("\n>> generate");
-			System.out.println("Beggining: " +beggining+"\n");
+			System.out.println("beginning: " +beginning+"\n");
 			System.out.println("Block: " +block+"\n");
 			System.out.println("PARENT: ");
 			prettyPrint(child2);	
 		}
 		String cache = "";
-		List<String> forward = new ArrayList<String>(); // The string will be: position - method, that way we don't need to use a TreeMap that is very slow		
+		List<String> forward = new ArrayList<String>(); 	
 		List<DefaultMutableTreeNode> parents = new ArrayList<DefaultMutableTreeNode>();
 		List<Stage> parents2 = new ArrayList<Stage>();
 		List<Integer> rddsParentsId = new ArrayList<Integer>();
 
 		// First we read the block to create the relations inside this block backwards, in order to do it we need to read it forward and analyze it backwards		
-		Pattern r1 = Pattern.compile("\\w*");
-		Matcher m1 = r1.matcher(block);
-		int end = 0;
-		while (m1.find()) {
-			if ((m1.start() - 1) >= 0 && block.charAt(m1.start() - 1) == '.' && checkMethod(m1.group()) != MethodsType.others) { // Method found
-				if (m1.start() > end) {
-					forward.add(String.valueOf(m1.start()) +"-"+ m1.group() +"-"+ String.valueOf(m1.start() + beggining));
-					end = searchEndHelper(m1.end(), block);
-				}
-			}
-		}
+		forward = findMethods(block, beginning);
+				
 		/*
 		for (int b = 0; b < rddsParentsId.size() ; b++) {
 			System.out.println("generate, rddchildId: " +b+": "+rddsParentsId.get(b));
@@ -535,6 +633,9 @@ public class Thesis {
 //				child2.addParentId(parent2.getId());
 
 				RDD rdd1 = new RDD(method+" at char " +pos);
+				PairInsideIf inside = checkInsideIf(Integer.valueOf(pos));
+				if(inside.inside)
+					rdd1.setCondition(inside.condition);
 //				RDD rdd2 = new RDD(method+" at char " +pos);
 								
 				if (childId != null){
@@ -611,6 +712,9 @@ public class Thesis {
 
 				addChild("- " +method, parent);
 				RDD rdd1 = new RDD(method+" at char " +pos);
+				PairInsideIf inside = checkInsideIf(Integer.valueOf(pos));
+				if(inside.inside)
+					rdd1.setCondition(inside.condition);
 //				rdd1.addchildId(child2.getId());
 				if (childId != null){
 					rdd1.addChildId(childId);					
@@ -709,10 +813,10 @@ public class Thesis {
 							}
 //							if (changedPosition)
 //								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
-							String subBlock = block.substring(start, end +1);
+							String subBlock = block.substring(start, block.length());
 							System.out.println("Written combine method: " +subBlock+", childId: " +parents2.get(position).getId()+", in p2: " +position+ ", p: " +p+ ", rddsParentsId: " +rddsParentsId.get(position));
 							List<Pair> pairL = new ArrayList<Pair>();
-							pairL.add(new Pair(subBlock, start + beggining));
+							pairL.add(new Pair(subBlock, start + beginning));
 							generate(pairL, parents.get(p), parents2.get(position), rddsParentsId.get(position));
 						}					
 					} 
@@ -1059,6 +1163,7 @@ public class Thesis {
 		private int id;
 		private List<Integer> childsIds;
 		private List<Integer> parentsIds;
+		private String condition;
 		
 		public RDD(String callSite){
 			this.callSite = callSite;
@@ -1102,6 +1207,9 @@ public class Thesis {
 				parentsIds = new ArrayList<Integer>();
 			return parentsIds;
 		}
+		public void setCondition(String condition){
+			this.condition = condition;
+		}
 	}	
 	
 	public static class Pair{
@@ -1119,6 +1227,16 @@ public class Thesis {
 
 	    public String getBlock() {
 	        return block;
+	    }
+	}
+	
+	public static class PairInsideIf{
+	    private final Boolean inside;
+	    private final String condition;
+
+	    public PairInsideIf(Boolean inside, String condition) {
+	        this.inside = inside;
+	        this.condition = condition;
 	    }
 	}
 }
