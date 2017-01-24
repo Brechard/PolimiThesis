@@ -10,8 +10,6 @@ public class Variables
 		action, transformation, shuffle, others
 	}
 	
-//	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/Chapter4.java";	
-//	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/TestGiovanni.java";	
 	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/SparkJoins.java";	
 	public static String pathJSON = "/home/rodrigo/workspace/output.json";	
 
@@ -31,7 +29,7 @@ public class Variables
 	
 	// TextFile may not be exactly a shuffle but it creates a new stage that is why we will consider it as a shuffle method and also transformation 
 	// The important here is not if the method is really a shuffle, only if it creates a new stage because this is the use of this
-	public static String[] shuffles = { "repartition", "join", "cogroup", "distinct", "leftOuterJoin", "rightOuterJoin","sortByKey", "textFile"};
+	public static String[] shuffles = { "repartition", "cogroup", "distinct", "leftOuterJoin", "rightOuterJoin","sortByKey", "textFile"};
 		
 	public static String jsonString = "";
 	public static String JSONPath = "methods.json";
