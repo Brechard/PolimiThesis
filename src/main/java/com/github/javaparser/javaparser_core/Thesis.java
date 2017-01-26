@@ -212,32 +212,22 @@ public class Thesis {
 		System.out.println(start+"-" +endIf+", " +ifOrElseOrLoop+": " +file.substring(start, endIf));
 	}
 	
-	public static PairInside checkInsideIf(int pos){
-		for(String s: ifs){
+	public static PairInside checkInside(int pos, String op){
+		List<String> list = loops;
+		if(op.equals("if")) list = ifs;
+		PairInside pair = new PairInside(false, new ArrayList<String>());
+		for(String s: list){
 			String[] splitted = s.split("-");
 			int start = Integer.valueOf(splitted[0]);
-			String condition = splitted[1];
+			String conditionS = splitted[1];
 			int end = Integer.valueOf(splitted[2]);
 			if((start <= pos) && (pos <= end)){
-				return new PairInside(true, condition);
+				pair.inside = true;
+				pair.condition.add(conditionS);
 			}
 		}		
-		return new PairInside(false, "");
+		return pair;
 	}
-
-	public static PairInside checkInsideLoop(int pos){
-		for(String s: loops){
-			String[] splitted = s.split("-");
-			int start = Integer.valueOf(splitted[0]);
-			String condition = splitted[1];
-			int end = Integer.valueOf(splitted[2]);
-			if((start <= pos) && (pos <= end)){
-				return new PairInside(true, condition);
-			}
-		}		
-		return new PairInside(false, "");
-	}
-	
 	
 	// Check if the method receive is a shuflle method, an action, a transformation or is some method that is not from spark
 	public static MethodsType checkMethod(String method){
@@ -656,10 +646,10 @@ public class Thesis {
 //				child2.addParentId(parent2.getId());
 
 				RDD rdd1 = new RDD(method+" at char " +pos);
-				PairInside inside = checkInsideIf(Integer.valueOf(pos));
+				PairInside inside = checkInside(Integer.valueOf(pos), "if");
 				if(inside.inside)
 					rdd1.setCondition(inside.condition);
-				inside = checkInsideLoop(Integer.valueOf(pos));
+				inside = checkInside(Integer.valueOf(pos), "loop");
 				if(inside.inside)
 					rdd1.setLoop(inside.condition);
 				
@@ -739,10 +729,10 @@ public class Thesis {
 
 				addChild("- " +method, parent);
 				RDD rdd1 = new RDD(method+" at char " +pos);
-				PairInside inside = checkInsideIf(Integer.valueOf(pos));
+				PairInside inside = checkInside(Integer.valueOf(pos), "if");
 				if(inside.inside)
 					rdd1.setCondition(inside.condition);
-				inside = checkInsideLoop(Integer.valueOf(pos));
+				inside = checkInside(Integer.valueOf(pos), "loop");
 				if(inside.inside)
 					rdd1.setLoop(inside.condition);
 //				rdd1.addchildId(child2.getId());
@@ -1193,8 +1183,8 @@ public class Thesis {
 		private int id;
 		private List<Integer> childsIds;
 		private List<Integer> parentsIds;
-		private String condition;
-		private String loop;
+		private List<String> condition;
+		private List<String> loop;
 		
 		public RDD(String callSite){
 			this.callSite = callSite;
@@ -1238,10 +1228,10 @@ public class Thesis {
 				parentsIds = new ArrayList<Integer>();
 			return parentsIds;
 		}
-		public void setCondition(String condition){
+		public void setCondition(List<String> condition){
 			this.condition = condition;
 		}
-		public void setLoop(String loop){
+		public void setLoop(List<String> loop){
 			this.loop = loop;
 		}
 	}	
@@ -1265,10 +1255,10 @@ public class Thesis {
 	}
 	
 	public static class PairInside{
-	    private final Boolean inside;
-	    private final String condition;
+	    private Boolean inside;
+	    private List<String> condition;
 
-	    public PairInside(Boolean inside, String condition) {
+	    public PairInside(Boolean inside, List<String> condition) {
 	        this.inside = inside;
 	        this.condition = condition;
 	    }
