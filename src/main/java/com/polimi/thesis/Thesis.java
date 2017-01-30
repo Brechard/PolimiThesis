@@ -1,4 +1,4 @@
-package com.github.javaparser.javaparser_core;
+package com.polimi.thesis;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -16,9 +16,9 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseException;
 import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.javaparser_core.Variables.MethodsType;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.polimi.thesis.Variables.MethodsType;
 
 public class Thesis {
 	
@@ -27,8 +27,8 @@ public class Thesis {
 	private static int rdds;
 	private static String file;
 	
-	private static Set<String> listRDDs = new HashSet<String>();
-	private static Set<String> listSC = new HashSet<String>();
+	private static Set<String> listRDDs;
+	private static Set<String> listSC;
 	
 	private static List<String> actionList = new ArrayList<String>();
 	
@@ -36,8 +36,8 @@ public class Thesis {
 	private static List<Map<Integer, Stage>> jobsList = new ArrayList<Map<Integer, Stage>>();
 	private static Map<Integer, Stage> stagesList = new HashMap<Integer, Stage>();
 	private static int nStages;
-	private static List<String> ifs = new ArrayList<String>();
-	private static List<String> loops = new ArrayList<String>();
+	private static List<String> ifs;
+	private static List<String> loops;
 
 	public static void main(String[] args) throws Exception {
 		jobs = 0; stages = 0; rdds = 0;
@@ -63,9 +63,11 @@ public class Thesis {
 
 		root = new DefaultMutableTreeNode("Jobs");
 		
-		findIfsAndLoops();
-		findRDDs();
-		findSC();		
+		PairList pairList = FindHelper.findIfsAndLoops(file);
+		ifs = pairList.getIfs();
+		loops = pairList.getLoops();
+		listRDDs = FindHelper.findRDDs(file);
+		listSC = FindHelper.findSC(file);		
 		
 		// Create a Pattern object
 		Pattern r = Pattern.compile("\\w*");
@@ -76,11 +78,11 @@ public class Thesis {
 		while (m.find()) {
 			if ((m.start() - 1) >= 0 && file.charAt(m.start() - 1) == '.') {
 				// Now we know that m.group() is a method, we have to check if it is a spark method
-				MethodsType type = checkMethod(m.group());
+				MethodsType type = CheckHelper.checkMethod(m.group());
 				if (type == MethodsType.action) {
 					String s = m.group();
 					jobs++;
-					if (file.charAt(m.start() - 2) != ')' && (checkRDD(cache) || checkSC(cache))) 
+					if (file.charAt(m.start() - 2) != ')' && (CheckHelper.checkRDD(cache, listRDDs) || CheckHelper.checkSC(cache, listSC))) 
 						s = cache+ "." +m.group();
 //					map.put(m.start() - 1, s); We are not using TreeMap because it is too slow
 					actionList.add(String.valueOf(m.start() +"-"+s));
@@ -115,13 +117,13 @@ public class Thesis {
 
 			// We have to find the block of code that this action refers to
 			if(c != ')'){
-				if (checkRDD(rddOrSc)) { // If it is applied to an RDD we have to find where and how it was created
-					generate(findBlock(rddOrSc, file.length()), (DefaultMutableTreeNode) root.getChildAt(jobs), null, null);
+				if (CheckHelper.checkRDD(rddOrSc, listRDDs)) { // If it is applied to an RDD we have to find where and how it was created
+					generate(FindHelper.findBlock(rddOrSc, file.length(), file), (DefaultMutableTreeNode) root.getChildAt(jobs), null, null);
 				} else { // If it is applied to an sc there is an error				
 					throw new Exception(method+", An action cannnot be applied to an SC");
 				}
 			} else {
-				int start = searchStartBlock(key);
+				int start = SearchHelper.searchStartBlock(key, file);
 				List<Pair> pairL = new ArrayList<Pair>();
 				pairL.add(new Pair(file.substring(start, key), start));
 				generate(pairL, (DefaultMutableTreeNode) root.getChildAt(jobs), null, null);
@@ -147,331 +149,6 @@ public class Thesis {
 		System.out.println("ifs   -> " +ifs);
 		System.out.println("loops -> " +loops);
 	}
-	
-	public static boolean checkCombine(String method){
-		for (int i = 0; i < Variables.combineMethods.length; i++) {
-			if(method.equals(Variables.combineMethods[i]))
-				return true;		
-		}
-		return false;
-	}
-	
-	public static int checkExistence(Stage stage){
-		List<RDD> rdds = stage.getRDDs();
-		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
-			Stage stage1 = entry.getValue();
-			if (stage1.id == stage.id)
-				continue;
-			List<RDD> rdds1 = stage1.getRDDs();
-			int equal = 0;
-			for (int i = 0; i < rdds1.size(); i++) {
-				String callsite = rdds1.get(i).callSite;
-				if (rdds.size() > i && callsite.equals(rdds.get(i).callSite)) 
-					continue;
-				else equal++;
-			}
-			if (equal == 0 && rdds.size() == rdds1.size()) {
-				return stage1.id;
-			}
-		}
-		
-		
-		return -1;
-	}
-	
-	private static String condition = ""; // The condition is a global variable in order to save the value for the else, the value is only updated when there are spark methods inside
-	public static void checkIfContainsSparkMethods(int start, String ifOrElseOrLoop){
-
-		int endCondition = start;
-		if(!ifOrElseOrLoop.equals("else")){ // Search the beginning of the condition
-			while(file.charAt(start) != '(' && start < file.length())
-				start++;
-			endCondition = searchEndParenthesis(start, file);
-		}
-		
-		int end = endCondition;
-		Character c = file.charAt(end);
-		while((c != '{' && c != '\n' && !Character.isLetterOrDigit(c) && c != '_') && end < file.length()){
-			end++;
-			c = file.charAt(end);
-		}
-		int endIf;
-		if(c == '{') // We have to find where it ends
-			endIf = searchEndCurlyBracket(end, file);
-		else
-			endIf = searchEndBlock(end, 0, file);			
-		
-		List<String> methods = findMethods(file.substring(end, endIf), end);
-		if(methods.size() != 0){
-			if(!ifOrElseOrLoop.equals("else")) condition = file.substring(start + 1, endCondition);
-			if(ifOrElseOrLoop.equals("while") || ifOrElseOrLoop.equals("for"))
-				loops.add(start+ "-" +ifOrElseOrLoop+ "(" +condition+ ")-" +endIf);
-			else
-				ifs.add(start+ "-" +ifOrElseOrLoop+ "(" +condition+ ")-" +endIf);	
-		}
-		System.out.println(start+"-" +endIf+", " +ifOrElseOrLoop+": " +file.substring(start, endIf));
-	}
-	
-	public static PairInside checkInside(int pos, String op){
-		List<String> list = loops;
-		if(op.equals("if")) list = ifs;
-		PairInside pair = new PairInside(false, new ArrayList<String>());
-		for(String s: list){
-			String[] splitted = s.split("-");
-			int start = Integer.valueOf(splitted[0]);
-			String conditionS = splitted[1];
-			int end = Integer.valueOf(splitted[2]);
-			if((start <= pos) && (pos <= end)){
-				pair.inside = true;
-				pair.condition.add(conditionS);
-			}
-		}		
-		return pair;
-	}
-	
-	// Check if the method receive is a shuflle method, an action, a transformation or is some method that is not from spark
-	public static MethodsType checkMethod(String method){
-		
-		// It is important to check first if it is a shuflle method because TEXTFILE is considered a shuffle and action in the variables and here we want it to be a shuffle
-		if(method.matches(".*By.*")){ // Check if the method passed will shuffle, considering that any transformation of the kind *By or *ByKey can result in shuffle
-			Boolean shuffle = true;
-			for (int i = 0; i < Variables.methodsByTransformation.length; i++) {
-				if(method.equals(Variables.methodsByTransformation[i])){
-					shuffle = false;
-					break;
-				}
-			}
-			if(shuffle)
-				return MethodsType.shuffle;		
-		}
-		else {
-			for (int i = 0; i < Variables.shuffles.length; i++) {
-				if(method.equals(Variables.shuffles[i]))
-					return MethodsType.shuffle;		
-			}
-		}
-		
-		for (int i = 0; i < Variables.actions.length; i++) {
-			if(method.equals(Variables.actions[i]))
-				return MethodsType.action;
-		}
-		for (int i = 0; i < Variables.transformations.length; i++) {
-			if(method.equals(Variables.transformations[i]))
-				return MethodsType.transformation;
-		}
-		return MethodsType.others;
-	}
-	
-	public static boolean checkRDD(String word){
-//		System.out.println("checkRDD: " +word);
-		for(String s: listRDDs){
-			if (s.equals(word)) 
-				return true;
-		}
-		return false;
-	}
-	
-	public static boolean checkSC(String word){
-//		System.out.println("checkSC: " +word);
-		for(String s: listSC){
-			if (s.equals(word)) 
-				return true;
-		}
-		return false;
-	}
-
-	/*
-	 * Find the spark methods inside the block sent but not considering those inside parenthesis
-	 * The string inside the list will be: positionInBlock - method - positionInFile
-	 * @param beginnning Integer that tells the position of the first letter of the block in the file string
-	 */
-	public static List<String> findMethods(String block, int beginning){
-		List<String> methods = new ArrayList<String>();
-		Pattern r1 = Pattern.compile("\\w*");
-		Matcher m1 = r1.matcher(block);
-		int end = 0;
-		while (m1.find()) {
-			if ((m1.start() - 1) >= 0 && block.charAt(m1.start() - 1) == '.' && checkMethod(m1.group()) != MethodsType.others) { // Method found
-				if (m1.start() > end) {
-					methods.add(String.valueOf(m1.start()) +"-"+ m1.group() +"-"+ String.valueOf(m1.start() + beginning));
-					end = searchEndParenthesis(m1.end(), block); // We search only the methods in the main block, not inside the parenthesis
-				}
-			}
-		}
-		return methods;
-	}
-	
-
-	/*
-	 * Finds the block where the rdd passed as parameter is created
-	 */
-	public static List<Pair> findBlock(String rdd, Integer actualPos){
-		
-		List<Integer> start = findRDD(rdd, actualPos);	
-		List<Pair> pairs = new ArrayList<Pair>();
-		System.out.println("findBlock(" +rdd+") start: " +start);
-		for(Integer i: start){
-			pairs.add(new Pair(file.substring(i, searchEndBlock(i, 0, file)), i));
-		}		
-		return pairs;
-	}
-	
-	public static String findCache(int end, String block){
-		int start = end - 100;
-		if (start < 0) start = 0;
-		Pattern r = Pattern.compile("\\w*");
-		Matcher m = r.matcher(block.substring(start, end));
-		String cache = "";
-		while(m.find()){
-			if (!m.group().replaceAll(" ", "").equals(""))				
-				cache = m.group();			
-		}
-		return cache;			
-	}
-	
-	private static Boolean beforeElse = false;
-	private static int posElse;
-	public static void findIfsAndLoops(){
-		Pattern r = Pattern.compile("\\w*");
-		Matcher m = r.matcher(file);
-		while(m.find()){
-			if(m.group().replace(" " ,"").equals(""))
-				continue;
-			String s = m.group();
-			int i = m.start();
-			if (s.equals("if")){
-				if(beforeElse){
-					beforeElse = false;
-					checkIfContainsSparkMethods(i, "else if");	
-				} else
-					checkIfContainsSparkMethods(i, s);	
-			} else if (s.equals("else")){
-				beforeElse = true;
-				posElse = i;
-			} else if(beforeElse){
-				beforeElse = false;
-				checkIfContainsSparkMethods(posElse, "else");					
-			} 			
-			if(s.equals("for") || s.equals("while"))				
-				checkIfContainsSparkMethods(i, s);	
-		}		
-	}
-	
-	
-	/*
-	 * Method that finds where an specific RDD is created
-	 */
-	public static List<Integer> findRDD(String s, Integer actualPos){
-		List<Integer> positions = new ArrayList<Integer>();
-        int length = s.length();
-        int i = 1;
-		// Since the actual position sent is the beginning of the method aplied to it, and we want to avoid to find the same line as we were just send we have to consider that this line could be s = s.method
-		int end = actualPos - length*2 - 6;
-        System.out.println(">> findRDD: " +s+", actualPos: " +actualPos+ ", file: " +file.length()+ ", end "+end);
-        
-		while (i < end) {  // Recorremos la expresión carácter a carácter		
-			if(file.substring(i, i + length).equals(s)
-					&& !Character.isLetterOrDigit(file.charAt(i + length + 1)) && file.charAt(i + length + 1) != '_'
-					&& !Character.isLetterOrDigit(file.charAt(i - 1)) && file.charAt(i - 1) != '_') {
-				if(checkIqual(i + length + 1))
-					positions.add(i);
-			} 
-			i++;
-		}
-		
-		return positions;		
-	}
-	
-	public static Boolean checkIqual(int pos){
-		int i = pos;
-		while(i < file.length() && file.charAt(i) == ' ') 
-			i++;
-		System.out.println("Char: " +file.charAt(i)+",i: " +i+", pos: " +pos);
-		if(file.charAt(i) == '=')
-			return true;
-		else return false;
-	}
-
-	
-	/*
-	 * Method that will find all the variables that represent and RDD
-	 */
-	public static void findRDDs(){
-        System.out.println(">> findRDDs");
-
-		String regex = "\\w*=\\w*\\.";
-
-		for (int i = 0; i < Variables.transformations.length; i++) {
-		
-			// Create a Pattern object
-			Pattern r = Pattern.compile(regex+Variables.transformations[i]);
-			// Now create matcher object.
-			Matcher m = r.matcher(file.replace(" ", ""));
-			
-			while(m.find()){
-		        String b =  m.group();
-		        String var = b.split("=")[0];
-		        listRDDs.add(var);
-			}
-		}
-		for (int i = 0; i < Variables.shuffles.length; i++) {
-			
-			// Create a Pattern object
-			Pattern r = Pattern.compile(regex+Variables.shuffles[i]);
-			// Now create matcher object.
-			Matcher m = r.matcher(file.replace(" ", ""));
-			
-			while(m.find()){
-		        String b =  m.group();
-		        String var = b.split("=")[0];
-		        listRDDs.add(var);
-			}
-		}
-		
-		// Check for RDDs created like newRDD = otherRDD
-		regex = "\\w*=";
-		List<String> aux = new ArrayList<String>();
-
-		for(String s: listRDDs){
-			String search = regex + s;
-			// Create a Pattern object
-			Pattern r = Pattern.compile(search);
-			// Now create matcher object.
-			Matcher m = r.matcher(file.replace(" ", ""));
-			
-			System.out.println(search);			
-			while(m.find()){
-		        String b =  m.group();
-		        String var = b.split("=")[0];
-				System.out.println("FIND: " +m.group()+", already: " +listRDDs.contains(var));
-		        if(!listRDDs.contains(var))
-		        	aux.add(var);
-			}			
-		}
-		listRDDs.addAll(aux);
-		for (String s : listRDDs)
-			System.out.println(">>>>>> " +s);
-	}
-	
-	public static void findSC(){
-
-        System.out.println(">> findSC");
-
-        String regex = "(JavaSparkContext?)\\s*(\\w*?)\\s*=";
-		// Create a Pattern object
-		
-		Pattern r = Pattern.compile(regex);
-		// Now create matcher object.
-		Matcher m = r.matcher(file);
-		
-		while(m.find()){
-			if (m.group(2) != null && !m.group(2).replaceAll(" ", "").equals(""))
-		        listSC.add(m.group(2));
-		}
-		for (String s : listSC)
-			System.out.println(">>>>>> " +s);
-		
-	}	
 		
 	public static void prettyPrint(Object a){
 		Gson gson = new GsonBuilder().setPrettyPrinting().create();		
@@ -502,99 +179,6 @@ public class Thesis {
 		return child;
 	}
 	
-	public static int searchEndCurlyBracket(int start, String block){
-		int i = start;
-		int par = 0;
-		while (i < block.length()) {
-			if(block.charAt(i)=='{')
-				par++;
-			else if  (block.charAt(i)=='}'){
-				par--;
-				if (par == 0)
-					return i;
-			}
-			i++;
-		}
-		return i;
-	}
-	
-	public static int searchEndParenthesis(int start, String block){
-		int i = start;
-		int par = 0;
-		while (i < block.length()) {
-			if(block.charAt(i)=='(')
-				par++;
-			else if  (block.charAt(i)==')'){
-				par--;
-				if (par == 0)
-					return i;
-			} else if(block.charAt(i) == ';' && par == 0)
-				return i;
-			i++;
-		}
-		return i;
-	}
-	
-	/*
-	 * This method searchs the end of a block of code given the begining 
-	 */
-	public static int searchEndBlock(int start, int par2, String block){
-//		System.out.println("start at: " +start);
-		int i = searchEndParenthesis(start, block);
-		if(block.charAt(i) == ')')
-			par2++;
-		int par = par2;
-		if (i == start) {
-			return i;
-		}
-		while (i < block.length()) {
-			if(block.charAt(i) == '('){
-				i = searchEndBlock(i, par++, block); // If we find another opening parenthesis we have to reach the end of it again
-				break;
-			} else if (block.charAt(i) == ')')
-				par --;
-			else if  (block.charAt(i)==';' && par == 0)
-				return i;
-			i++;
-		}		
-		return i;
-	}
-	
-	/*
-	 * This method searchs the start of a block of code surrounded of parenthesis
-	 */
-	public static int searchStartParenthesisBlock(String block, int end){
-//		System.out.println("start at: " +start);
-		int i = end;
-		int par = 0;
-
-		while (i > 0) {
-			if(block.charAt(i)==')') par++;                              
-			else if  (block.charAt(i)=='('){
-				par--;  
-				if (par == 0)
-					break;
-			}
-			i--;
-		}
-		return i;
-	}
-
-	/*
-	 * This method searchs the start of a block of code surrounded of parenthesis
-	 */
-
-	public static int searchStartBlock(int end){
-		int i = end;
-		int par = 0;
-		while (i > 0) {
-			if(file.charAt(i)==')') par++;                              
-			else if (file.charAt(i)=='(') par--;
-			else if (file.charAt(i)==';' && par == 0) return i;
-			i--;
-		}		
-		return i;
-	}
 
 	
 	/*
@@ -618,7 +202,7 @@ public class Thesis {
 		List<Integer> rddsParentsId = new ArrayList<Integer>();
 
 		// First we read the block to create the relations inside this block backwards, in order to do it we need to read it forward and analyze it backwards		
-		forward = findMethods(block, beginning);
+		forward = FindHelper.findMethods(block, beginning);
 				
 		/*
 		for (int b = 0; b < rddsParentsId.size() ; b++) {
@@ -636,22 +220,22 @@ public class Thesis {
 			String method = forward.get(j).split("-")[1];
 			String pos = forward.get(j).split("-")[2];
 			if (child2 == null)
-				child2 = new Stage();
-			System.out.println("Received Method: " +method+ ", type: " +checkMethod(method)+", childId: " +child2.getId()+", rddsParentsId: " +childId+", pos: " +pos);
+				child2 = createStage();
+			System.out.println("Received Method: " +method+ ", type: " +CheckHelper.checkMethod(method)+", childId: " +child2.getId()+", rddsParentsId: " +childId+", pos: " +pos);
 			Stage childCache = child2;
-			MethodsType type = checkMethod(method);
+			MethodsType type = CheckHelper.checkMethod(method);
 			if (type == MethodsType.shuffle){ // If the method is shuffle, it means we have to finish the current stage, add it to the list and create a new one with dependency for the actual one
 				parent = addChild("+ " +method, parent);
-				Stage parent2 = new Stage();
+				Stage parent2 = createStage();
 //				child2.addParentId(parent2.getId());
 
-				RDD rdd1 = new RDD(method+" at char " +pos);
-				PairInside inside = checkInside(Integer.valueOf(pos), "if");
-				if(inside.inside)
-					rdd1.setCondition(inside.condition);
-				inside = checkInside(Integer.valueOf(pos), "loop");
-				if(inside.inside)
-					rdd1.setLoop(inside.condition);
+				RDD rdd1 = createRDD(method+" at char " +pos);
+				PairInside inside = CheckHelper.checkInside(Integer.valueOf(pos), "if", ifs, loops);
+				if(inside.getInside())
+					rdd1.setCondition(inside.getCondition());
+				inside = CheckHelper.checkInside(Integer.valueOf(pos), "loop", ifs, loops);
+				if(inside.getInside())
+					rdd1.setLoop(inside.getCondition());
 				
 //				RDD rdd2 = new RDD(method+" at char " +pos);
 								
@@ -662,8 +246,8 @@ public class Thesis {
 //					System.out.println("Stage: "+child2.id);
 //					prettyPrint(child2);
 					if(child2.getRDDs().size() == 0){ // If in the stage there are still not rdds this means that the rdd will have his child in another stage
-						List<Integer> childStages = child2.getChildId();
-						for(Integer id: childStages){
+						List<Integer> childrentages = child2.getChildId();
+						for(Integer id: childrentages){
 							Stage stageChild = stagesList.get(id);
 //							System.out.println("Stage list id: " +id+", being search by: " +child2.id);
 							List<RDD> rddsChild = stageChild.getRDDs();
@@ -684,9 +268,9 @@ public class Thesis {
 				child2.addChild(rdd1);
 				
 				// Check if the stage created already exist
-				int check = checkExistence(child2);
+				int check = CheckHelper.checkExistence(child2, stagesList);
 				
-				// If it exist then it means the already existing stage has two childs, so we have to modify the already existing
+				// If it exist then it means the already existing stage has two children, so we have to modify the already existing
 				// stage instead of creating one
 				if(check > -1){
 					/*
@@ -700,7 +284,7 @@ public class Thesis {
 //					prettyPrint(newParent);
 					
 					RDD lastRDD = newParent.getRDDs().get(0);
-					lastRDD.addChildId(child2.getRDDs().get(0).getChildsId());
+					lastRDD.addChildId(child2.getRDDs().get(0).getchildrenId());
 					newParent.addChildId(child2.getChildId());
 					
 					stagesList.put(newParent.getId(), newParent);
@@ -728,13 +312,13 @@ public class Thesis {
 			} else {
 
 				addChild("- " +method, parent);
-				RDD rdd1 = new RDD(method+" at char " +pos);
-				PairInside inside = checkInside(Integer.valueOf(pos), "if");
-				if(inside.inside)
-					rdd1.setCondition(inside.condition);
-				inside = checkInside(Integer.valueOf(pos), "loop");
-				if(inside.inside)
-					rdd1.setLoop(inside.condition);
+				RDD rdd1 = createRDD(method+" at char " +pos);
+				PairInside inside = CheckHelper.checkInside(Integer.valueOf(pos), "if", ifs, loops);
+				if(inside.getInside())
+					rdd1.setCondition(inside.getCondition());
+				inside = CheckHelper.checkInside(Integer.valueOf(pos), "loop", ifs, loops);
+				if(inside.getInside())
+					rdd1.setLoop(inside.getCondition());
 //				rdd1.addchildId(child2.getId());
 				if (childId != null){
 					rdd1.addChildId(childId);					
@@ -742,8 +326,8 @@ public class Thesis {
 //					System.out.println("Stage: "+child2.id);
 //					prettyPrint(child2);
 					if(child2.getRDDs().size() == 0){ // If in the stage there are still not rdds this means that the rdd will have his child in another stage
-						List<Integer> childStages = child2.getChildId();
-						for(Integer id: childStages){
+						List<Integer> childrentages = child2.getChildId();
+						for(Integer id: childrentages){
 							Stage stageChild = stagesList.get(id);
 //							System.out.println("Stage list id: " +id+", being search by: " +child2.id);
 //							prettyPrint(stagesList);
@@ -772,9 +356,9 @@ public class Thesis {
 			prettyPrint(stagesList);
 			System.out.println("PARENT: " +position);
 			prettyPrint(child2);
-			if (type == MethodsType.shuffle && checkCombine(method)) {
+			if (type == MethodsType.shuffle && CheckHelper.checkCombine(method)) {
 				position++;
-				Stage parentNew = new Stage();
+				Stage parentNew = createStage();
 				parentNew.addChildId(childCache.getId());
 				
 //				childCache.addParentId(parentNew.getId());
@@ -808,25 +392,25 @@ public class Thesis {
 					int pos = Integer.valueOf(forward.get(j - 1).split("-")[0]);
 					String method = forward.get(j - 1).split("-")[1];
 					int start = pos + method.length();
-					MethodsType type = checkMethod(method);
+					MethodsType type = CheckHelper.checkMethod(method);
 					int posReal = Integer.valueOf(forward.get(j - 1).split("-")[2]);
 //					System.out.println("Second loop, check if last method: "+method+", is combine, start: " +block.charAt(start)+ ", +1: " +block.charAt(start + 1));
 					if(block.charAt(start + 1) != ')'){ // The last method of the block is combine Method
-						int endBlock = searchEndBlock(start, 1, block);
-						cache = findCache(endBlock, block);
+						int endBlock = SearchHelper.searchEndBlock(start, 1, block);
+						cache = FindHelper.findCache(endBlock, block);
 						System.out.println("position cero");
 						position = position + 1;
 						changedPosition = true;
 						prettyPrint(parents2);
 						prettyPrint(stagesList);
-						if (checkRDD(cache) || checkSC(cache)) { 
+						if (CheckHelper.checkRDD(cache, listRDDs) || CheckHelper.checkSC(cache, listSC)) { 
 							if(type != MethodsType.shuffle) position = 0; // If the method is not a shuffle the following methods have to be on the same stage as this method
 //							System.out.println("Combine method with variable: " +cache+", childId: " +parents2.get(position).getId()+", in 1");
 //							if (changedPosition)
 //								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
-							generate(findBlock(cache, posReal), parents.get(p), parents2.get(position), rddsParentsId.get(position));					
+							generate(FindHelper.findBlock(cache, posReal, file), parents.get(p), parents2.get(position), rddsParentsId.get(position));					
 						} else {
-							if(!checkCombine(method)){
+							if(!CheckHelper.checkCombine(method)){
 								System.out.println("\n\nDes Changed position\n\n ");
 								position = 0;
 								changedPosition  = false;
@@ -852,16 +436,16 @@ public class Thesis {
 				int pos = Integer.valueOf(forward.get(j).split("-")[0]);
 				int posReal = Integer.valueOf(forward.get(j).split("-")[2]);
 				String method = forward.get(j).split("-")[1];
-				MethodsType type = checkMethod(method);
+				MethodsType type = CheckHelper.checkMethod(method);
 				if (j - 1 >= 0) {
 					String methodBefore1 = forward.get(j - 1).split("-")[1];
-					type = checkMethod(methodBefore1);
+					type = CheckHelper.checkMethod(methodBefore1);
 				}
 				System.out.println("Second loop, method: " +method+ ", p: " +p+ ", rddsParentsId: " +childId+", position: " +position+ ", block:" +block);
 
 
 				if(block.charAt(pos - 2) == ')'){ // Method not applied directly to a variable, we have to analyze the interior of the parenthesis
-					cache = findCache(pos, block);
+					cache = FindHelper.findCache(pos, block);
 					System.out.println("Cache: " +cache+", p: " +p+ ", rddsParentsId: " +childId);
 					if (block.charAt(pos - 3) == '(') { // There is nothing inside the parenthesis, the method is applied to the result of another method
 						System.out.println("Nothing to do here");
@@ -873,12 +457,12 @@ public class Thesis {
 							position = position + 1;							
 						}
 						changedPosition = true;							
-						if (checkRDD(cache) || checkSC(cache)) { 
+						if (CheckHelper.checkRDD(cache, listRDDs) || CheckHelper.checkSC(cache, listSC)) { 
 							String methodBefore ="";
 							if (j - 1 >= 0) {
 								methodBefore = forward.get(j - 1).split("-")[1];
-								System.out.println("Combine method with variable: " +cache+", methodBefore: " +methodBefore+", combine: " +checkCombine(methodBefore));
-								if(!checkCombine(methodBefore) && changedPosition){ // If it was not a combine method we have to undo the addition
+								System.out.println("Combine method with variable: " +cache+", methodBefore: " +methodBefore+", combine: " +CheckHelper.checkCombine(methodBefore));
+								if(!CheckHelper.checkCombine(methodBefore) && changedPosition){ // If it was not a combine method we have to undo the addition
 									position = position - 2;
 									changedPosition = false;
 								}
@@ -892,15 +476,15 @@ public class Thesis {
 									changedPosition = false;
 								}
 							}
-							System.out.println("Combine method with variable: " +cache+", in p2: " +position+", type: " +checkMethod(methodBefore));
+							System.out.println("Combine method with variable: " +cache+", in p2: " +position+", type: " +CheckHelper.checkMethod(methodBefore));
 //							if (changedPosition)
 //								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
 							System.out.println("Combine method with variable: " +cache+", j: " +j+", childId: " +parents2.get(position).getId()+", in p2: " +position+ ", p: " +p+ ", rddsParentsId: " +rddsParentsId.get(position)+", position: "+position);
-							generate(findBlock(cache, posReal), parents.get(p), parents2.get(position), rddsParentsId.get(position));					
+							generate(FindHelper.findBlock(cache, posReal, file), parents.get(p), parents2.get(position), rddsParentsId.get(position));					
 						} else {
 							if (j - 1 >= 0) {
 								String methodBefore = forward.get(j - 1).split("-")[1];
-								if(!checkCombine(methodBefore) && changedPosition){
+								if(!CheckHelper.checkCombine(methodBefore) && changedPosition){
 									if (type == MethodsType.shuffle) {
 										position = position - 2;
 									} else {
@@ -920,7 +504,7 @@ public class Thesis {
 							}
 //							if (changedPosition)
 //								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
-							int start = searchStartParenthesisBlock(block, pos);
+							int start = SearchHelper.searchStartParenthesisBlock(block, pos);
 							String subBlock = block.substring(start, pos);
 							System.out.println("Written combine method: " +subBlock+", childId: " +parents2.get(position).getId()+", in p2: " +position+ ", rddsParentsId: " +rddsParentsId.get(position));
 							List<Pair> pairL = new ArrayList<Pair>();
@@ -937,7 +521,7 @@ public class Thesis {
 						}
 					}					
 				} else { // Method applied directly to a variable
-					cache = findCache(pos, block);
+					cache = FindHelper.findCache(pos, block);
 					/*
 					Boolean combine = checkCombine(forward.get(j).split("-")[1]);
 					int a = 0;
@@ -954,10 +538,10 @@ public class Thesis {
 					System.out.println("Applied directly to a variable: " +cache+", childId2: " +parents2.get(position).getId());
 					*/
 					System.out.println("Applied directly to a variable: " +cache+", childId: " +parents2.get(p).getId()+", p: " +p+", p2: " +position+ ", rddsParentsId: " +rddsParentsId.get(p)+", block: " +block);
-					if (checkRDD(cache)) {
-						System.out.println("Let's recall, block: "+findBlock(cache, posReal));
-						generate(findBlock(cache, posReal), parents.get(p), parents2.get(position), rddsParentsId.get(position));					
-					} else if(checkSC(cache)) { // If the method is applied directly to an SC it means the stage finishes here so we have to add it to the stageList
+					if (CheckHelper.checkRDD(cache, listRDDs)) {
+						System.out.println("Let's recall, block: "+FindHelper.findBlock(cache, posReal, file));
+						generate(FindHelper.findBlock(cache, posReal, file), parents.get(p), parents2.get(position), rddsParentsId.get(position));					
+					} else if(CheckHelper.checkSC(cache, listSC)) { // If the method is applied directly to an SC it means the stage finishes here so we have to add it to the stageList
 						System.out.println("Method applied to a SC, put in the stageList");
 						stagesList.put(parents2.get(position).getId(), parents2.get(position));											
 					} else {
@@ -966,7 +550,7 @@ public class Thesis {
 				}
 				p++;
 				position++;
-				if (checkCombine(method))
+				if (CheckHelper.checkCombine(method))
 					position++;
 			} 
 		} else { // If there are no spark methods inside the block it may be a case of newRDD = otherRDD;
@@ -978,18 +562,17 @@ public class Thesis {
 				if(splited.length > 1){
 					String rdd1 = m.group().split("=")[0];
 					String rdd2 = m.group().split("=")[1];
-					if(checkRDD(rdd1) && checkRDD(rdd2)){
-						generate(findBlock(rdd2, file.length()), parent, child2, childId);					
+					if(CheckHelper.checkRDD(rdd1, listRDDs) && CheckHelper.checkRDD(rdd2, listRDDs)){
+						generate(FindHelper.findBlock(rdd2, file.length(), file), parent, child2, childId);					
 					}				
 				}
 			}			
 		}
 	}
 	
-	
 	public static void updateStages(){
 		
-		List<Stage> childsStagesList = new ArrayList<Stage>();
+		List<Stage> childrenStagesList = new ArrayList<Stage>();
 		List<Integer> keys = new ArrayList<Integer>();
 		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet())
 			keys.add(entry.getKey());
@@ -997,7 +580,7 @@ public class Thesis {
 		System.out.println("\n\n\n\n updateStages, " +keys);
 		prettyPrint(stagesList);
 
-		// Find the stage that does not have any child wich will be the last stage, from there we will order the others ("generation" by "generation"), updating childsId and parentsId
+		// Find the stage that does not have any child wich will be the last stage, from there we will order the others ("generation" by "generation"), updating childrenId and parentsId
 		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
 			Stage stage = entry.getValue();
 			if(stage.getChildId().isEmpty()){
@@ -1005,28 +588,28 @@ public class Thesis {
 				stage.setId(nStages--);
 				
 //				System.out.println("Stage modified, new Id: " +stage.getId()+", oldId: " +oldId);
-				childsStagesList = updateStageschildId(stage.getId(), oldId, stage, new ArrayList<Stage>());
+				childrenStagesList = updateStageschildId(stage.getId(), oldId, stage, new ArrayList<Stage>());
 				break; // There can not be more than a final stage
 			}				
 		}			
 		
-		while(!childsStagesList.isEmpty()){
+		while(!childrenStagesList.isEmpty()){
 //			System.out.println("A:" +a++);
 			List<Stage> aux = new ArrayList<Stage>();
-			for (Stage stage : childsStagesList) {
+			for (Stage stage : childrenStagesList) {
 				int oldId = stage.getId();
 				stage.setId(nStages--);
-				List<Stage> aux2 = updateStageschildId(stage.getId(), oldId, stage, childsStagesList);
+				List<Stage> aux2 = updateStageschildId(stage.getId(), oldId, stage, childrenStagesList);
 				for (Stage stage2 : aux2) {
 					if(!aux.contains(stage2)) // If a Stages has already been added to be modified we don't have to add it twice
 						aux.add(stage2);
 				}
 			}
-			for(Stage b: childsStagesList){
+			for(Stage b: childrenStagesList){
 //				System.out.println("CHILD - Id:" +b.getId());
 				b.setUpdatedChild(true);
 			}
-			childsStagesList = aux;
+			childrenStagesList = aux;
 			if(nStages < -5)
 				throw new Error("ERROR");
 		}
@@ -1085,9 +668,9 @@ public class Thesis {
 		// Once the stages have been ordered we set the parents ids of the stages (if a stage is my child, I am his father)
 		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
 			Stage stage = entry.getValue();
-			List<Integer> childsIds = stage.getChildId();
-			System.out.println("Stage: "+stage.id+ ", childs: " +childsIds);
-			for(Integer id: childsIds){
+			List<Integer> childrenIds = stage.getChildId();
+			System.out.println("Stage: "+stage.getId()+ ", children: " +childrenIds);
+			for(Integer id: childrenIds){
 //				System.out.println("Id of a child: " +id);
 				Stage child = stagesList.get(id);
 //				prettyPrint(child);
@@ -1102,167 +685,35 @@ public class Thesis {
 	 * Change the ids the stages related with the one sent,as we are updating generation by generation and from the last child, we will return a list of stages that we have modified
 	 */
 	public static List<Stage> updateStageschildId(int newId, int oldId, Stage stageCalling, List<Stage> sameLevelStages){
-		List<Stage> childsStagesList = new ArrayList<Stage>();
+		List<Stage> childrenStagesList = new ArrayList<Stage>();
 		System.out.println("\nModifie stage, oldId: " +oldId+ ", newId: " +newId);
 		
 		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
 			Stage stage = entry.getValue();
-			if(stage == stageCalling || (stage.updatedChild != null && stage.updatedChild)) continue;
+			if(stage == stageCalling || (stage.getUpdatedChild() != null && stage.getUpdatedChild())) continue;
 			// Update in parents the childId
-			List<Integer> childsIds = stage.getChildId();
-			for(int i = 0; i < childsIds.size(); i++){
-				if(childsIds.get(i) == oldId){
+			List<Integer> childrenIds = stage.getChildId();
+			for(int i = 0; i < childrenIds.size(); i++){
+				if(childrenIds.get(i) == oldId){
 					System.out.println("Stage " +stage.getId()+ " modified childId, oldId: " +oldId+", newId: " +newId);					
-					childsIds.remove(i);
-					if(!childsIds.contains(newId))
-						childsIds.add(i, newId);
+					childrenIds.remove(i);
+					if(!childrenIds.contains(newId))
+						childrenIds.add(i, newId);
 					if(!sameLevelStages.contains(stage))
-						childsStagesList.add(stage);
+						childrenStagesList.add(stage);
 				}
 			}
 			
 		}	
 		
-		return childsStagesList;
+		return childrenStagesList;
 	}
 	
-	public static class Stage{
-		private int id;
-		private List<RDD> rdds;
-		private List<Integer> childId;
-		private List<Integer> parentId;
-		private Boolean updatedChild;
-
-		public Stage(){
-			id = stages++;
-			childId = new ArrayList<Integer>();
-			parentId = new ArrayList<Integer>();
-			rdds = new ArrayList<RDD>();
-		}
-		public void addChild(RDD child) {
-			rdds.add(child);
-		}
-		public void addChildId(int id){
-			childId.add(id);
-		}
-		public void addChildId(List<Integer> ids){
-			childId.addAll(ids);
-		}
-		public List<Integer> getChildId(){
-			return childId;
-		}
-		public void addParent(RDD parent) {
-			rdds.add(parent);
-		}
-		public void addParentId(int id){
-			parentId.add(id);
-		}
-		public void addParentId(List<Integer> ids){
-			parentId.addAll(ids);
-		}
-		public List<Integer> getParentId(){
-			return parentId;
-		}
-		public int getId(){
-			return id;
-		}
-		public List<RDD> getRDDs(){
-			return rdds;
-		}
-		public void setId(int id){
-			this.id = id;
-		}
-		public void setUpdatedChild(Boolean update){
-			updatedChild = update;
-		}
-		
+	public static RDD createRDD(String rdd){
+		return new RDD(rdd, rdds++);
 	}
 	
-	public static class RDD{
-		private String callSite;
-		private int id;
-		private List<Integer> childsIds;
-		private List<Integer> parentsIds;
-		private List<String> condition;
-		private List<String> loop;
-		
-		public RDD(String callSite){
-			this.callSite = callSite;
-			id = rdds++;
-			childsIds = new ArrayList<Integer>();
-		}
-
-		public void addChildId(int id){
-			childsIds.add(id);
-		}
-		
-		public void addChildId(List<Integer> ids){
-			childsIds.addAll(ids);			
-		}
-
-		public void addParentId(int id){
-			if(parentsIds == null)
-				parentsIds = new ArrayList<Integer>();
-			parentsIds.add(id);
-		}
-		
-		public void addParentId(List<Integer> ids){
-			if(parentsIds == null)
-				parentsIds = new ArrayList<Integer>();
-			parentsIds.addAll(ids);			
-		}
-
-		public int getId(){
-			return id;
-		}
-		
-		public String getCallSite(){
-			return callSite;
-		}	
-		
-		public List<Integer> getChildsId(){
-			return childsIds;
-		}
-		public List<Integer> getParentsId(){
-			if(parentsIds == null)
-				parentsIds = new ArrayList<Integer>();
-			return parentsIds;
-		}
-		public void setCondition(List<String> condition){
-			this.condition = condition;
-		}
-		public void setLoop(List<String> loop){
-			this.loop = loop;
-		}
-	}	
-	
-	public static class Pair{
-	    private final String block;
-	    private final int firstPos;
-
-	    public Pair(String block, int firstPos) {
-	        this.block = block;
-	        this.firstPos = firstPos;
-	    }
-
-	    public int getFirstPos() {
-	        return firstPos;
-	    }
-
-	    public String getBlock() {
-	        return block;
-	    }
-	}
-	
-	public static class PairInside{
-	    private Boolean inside;
-	    private List<String> condition;
-
-	    public PairInside(Boolean inside, List<String> condition) {
-	        this.inside = inside;
-	        this.condition = condition;
-	    }
+	public static Stage createStage(){
+		return new Stage(stages++);
 	}
 }
-
-

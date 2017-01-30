@@ -1,4 +1,4 @@
-package com.github.javaparser.javaparser_core;
+package com.polimi.thesis;
 
 public class Variables 
 {
@@ -6,8 +6,8 @@ public class Variables
 		action, transformation, shuffle, others
 	}
 	
-	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/BasicConditionalTest.java";	
-//	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/SparkJoins.java";	
+//	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/BasicConditionalTest.java";	
+	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/SparkJoins.java";	
 	public static String pathJSON = "/home/rodrigo/workspace/output.json";	
 
 	public static String[] actions = 
