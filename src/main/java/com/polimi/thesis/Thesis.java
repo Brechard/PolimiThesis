@@ -223,94 +223,9 @@ public class Thesis {
 				child2 = createStage();
 			System.out.println("Received Method: " +method+ ", type: " +CheckHelper.checkMethod(method)+", childId: " +child2.getId()+", rddsParentsId: " +childId+", pos: " +pos);
 			Stage childCache = child2;
-			MethodsType type = CheckHelper.checkMethod(method);
-			if (type == MethodsType.shuffle){ // If the method is shuffle, it means we have to finish the current stage, add it to the list and create a new one with dependency for the actual one
-				parent = addChild("+ " +method, parent);
-				Stage parent2 = createStage();
-//				child2.addParentId(parent2.getId());
 
-				RDD rdd1 = createRDD(method+" at char " +pos);
-				PairInside inside = CheckHelper.checkInside(Integer.valueOf(pos), "if", ifs, loops);
-				if(inside.getInside())
-					rdd1.setCondition(inside.getCondition());
-				inside = CheckHelper.checkInside(Integer.valueOf(pos), "loop", ifs, loops);
-				if(inside.getInside())
-					rdd1.setLoop(inside.getCondition());
-				
-//				RDD rdd2 = new RDD(method+" at char " +pos);
-								
-				if (childId != null){
-					rdd1.addChildId(childId);
-					// We have to search for the child RDDs in order to put the parentRDDId
-				
-//					System.out.println("Stage: "+child2.id);
-//					prettyPrint(child2);
-					if(child2.getRDDs().size() == 0){ // If in the stage there are still not rdds this means that the rdd will have his child in another stage
-						List<Integer> childrentages = child2.getChildId();
-						for(Integer id: childrentages){
-							Stage stageChild = stagesList.get(id);
-//							System.out.println("Stage list id: " +id+", being search by: " +child2.id);
-							List<RDD> rddsChild = stageChild.getRDDs();
-							for(RDD rddChild: rddsChild){
-//								System.out.println("Rdd child: "+rddChild.getId()+", childId: " +childId);
-								if(rddChild.getId() == childId)
-									rddChild.addParentId(rdd1.getId());								
-							}
-						}						
-					} else {
-						List<RDD> rddsChild2 = child2.getRDDs();
-						for(RDD rddChild2: rddsChild2)
-							if(rddChild2.getId() == childId)
-								rddChild2.addParentId(rdd1.getId());
-					}										
-				}				
-				childId = rdd1.getId();
-				child2.addChild(rdd1);
-				
-				// Check if the stage created already exist
-				int check = CheckHelper.checkExistence(child2, stagesList);
-				
-				// If it exist then it means the already existing stage has two children, so we have to modify the already existing
-				// stage instead of creating one
-				if(check > -1){
-					/*
-					System.out.println("CHECK: " +check);
-					prettyPrint(stagesList);
-					System.out.println("Parent to check");
-					prettyPrint(child2);
-					System.out.println("Parent equivalent");
-					*/
-					Stage newParent = stagesList.get(check);
-//					prettyPrint(newParent);
-					
-					RDD lastRDD = newParent.getRDDs().get(0);
-					lastRDD.addChildId(child2.getRDDs().get(0).getchildrenId());
-					newParent.addChildId(child2.getChildId());
-					
-					stagesList.put(newParent.getId(), newParent);
-					
-					// If the new Parent already exist we have to modify in the child the parent Id					
-					for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
-						Stage stage = entry.getValue();
-						List<Integer> parentsIds = stage.getParentId();
-						for (int z = 0; z < parentsIds.size(); z++) {
-							if (parentsIds.get(z) == child2.getId()){
-								parentsIds.remove(z);
-								parentsIds.add(z, newParent.getId());
-							}
-						}
-					}
-					return; // Since the stage already exists the dependecies after this stage are already created
-				} else  {
-					stagesList.put(child2.getId(), child2);
-				}
-				
-				parent2.addChildId(child2.getId());
-				child2 = parent2;
-//				prettyPrint(stagesList);
-				// In order to be possible 
-			} else {
 
+			
 				addChild("- " +method, parent);
 				RDD rdd1 = createRDD(method+" at char " +pos);
 				PairInside inside = CheckHelper.checkInside(Integer.valueOf(pos), "if", ifs, loops);
@@ -347,7 +262,10 @@ public class Thesis {
 				}
 				childId = rdd1.getId();				
 				child2.addChild(rdd1);
-			}
+
+
+				
+				
 //			System.out.println("childId: " +child2.getId()+ " in p2: " +position);
 			System.out.println("Save childId: " +child2.getId()+ ", rddsParentsId: " +childId+ " in p2: " +position+"\n");
 			parents.add(p++, parent);
@@ -356,19 +274,20 @@ public class Thesis {
 			prettyPrint(stagesList);
 			System.out.println("PARENT: " +position);
 			prettyPrint(child2);
-			if (type == MethodsType.shuffle && CheckHelper.checkCombine(method)) {
+			
+			if (CheckHelper.checkCombine(method)) {
 				position++;
-				Stage parentNew = createStage();
-				parentNew.addChildId(childCache.getId());
+
+				child2.addChildId(childCache.getId());
 				
 //				childCache.addParentId(parentNew.getId());
 				
-				parents2.add(position, parentNew);
+				parents2.add(position, child2);
 				rddsParentsId.add(position, childId);
 				System.out.println("rddsParentsId: " +childId+ " in p2: " +position);
 				System.out.println("PARENT COMBINE: " +position);
 				System.out.println("PARENT COMBINE");
-				prettyPrint(parentNew);
+				prettyPrint(child2);
 			}
 			/*
 			for (int b = 0; b < rddsParentsId.size() ; b++) {
