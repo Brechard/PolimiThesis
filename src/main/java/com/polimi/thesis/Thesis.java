@@ -114,13 +114,14 @@ public class Thesis {
   
 			char c = file.charAt(key - 2);
 			System.out.println("\n\nAction found: " +method+ ", a new job should be generated, jobs = "+jobs+"\n\n");
+			prettyPrint(actionList.get(i));
 
 			// We have to find the block of code that this action refers to
 			if(c != ')'){
 				if (CheckHelper.checkRDD(rddOrSc, listRDDs)) { // If it is applied to an RDD we have to find where and how it was created
 					generate(FindHelper.findBlock(rddOrSc, file.length(), file), (DefaultMutableTreeNode) root.getChildAt(jobs), null, null);
 				} else { // If it is applied to an sc there is an error				
-					throw new Exception(method+", An action cannnot be applied to an SC");
+					throw new Exception(method+", An action cannnot be applied to an SC: " +rddOrSc+"-"+file.substring(key -20, key - 2)+"-");
 				}
 			} else {
 				int start = SearchHelper.searchStartBlock(key, file);
@@ -128,6 +129,7 @@ public class Thesis {
 				pairL.add(new Pair(file.substring(start, key), start));
 				generate(pairL, (DefaultMutableTreeNode) root.getChildAt(jobs), null, null);
 			}
+			stagesList = CreateStages.create(stagesList);
 		}
 		prettyPrint(jobsList);
 		

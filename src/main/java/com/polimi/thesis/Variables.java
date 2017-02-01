@@ -24,8 +24,8 @@ public class Variables
 				
 				,"parallelize","combineByKey", "mapToPair","textFile"};
 	
-	// The important here is not if the method is really a shuffle, only if it creates a new stage because this is the use of this
-	public static String[] shuffles = { "repartition", "cogroup", "distinct", "leftOuterJoin", "rightOuterJoin","sortByKey", "join"};
+	// A method will shuffle is the partitioner has not been cleared
+	public static String[] shuffles = { "repartition", "cogroup", "distinct", "leftOuterJoin", "rightOuterJoin","sortByKey", "join", "groupByKey"};
 		
 	public static String jsonString = "";
 	public static String JSONPath = "methods.json";
@@ -36,6 +36,21 @@ public class Variables
 
 	// Any method of the kind *By or *ByKey can result in shuffle, that's why here we will place the By method's that we know are transformation and will not create a new stage
 	public static String[] methodsByTransformation = {"combineByKey", "groupByKey" };
-		
+
+	public static String[] clearsPartitioner = { "map", "flatMap", "union", "intersection", "distinct", };
+	public static String[] preservesPartitioner = { "filter", "sample", "groupByKey" };
+	
+	
+	/*
+	 * Methods not sure about:
+	 * groupByKey, reduceByKey, aggregateByKey
+	 */
+	
+	/*
+	 * mapPartitions, mapPartitionsWithIndex,
+	 */
+	   // `preservesPartitioning` indicates whether the input function preserves the partitioner, which
+	   // should be `false` unless this is a pair RDD and the input function doesn't modify the keys.
+
 }
 
