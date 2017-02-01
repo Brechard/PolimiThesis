@@ -19,7 +19,7 @@ public class Variables
 	public static String[] transformations = 
 		{ "map", "filter", "flatMap", "mapPartitions", "mapPartitionsWithIndex", "sample", "union", "intersection", "distinct", "groupByKey", "reduceByKey",
 				"aggregateByKey", "sortByKey", "join", "cogroup", "cartesian", "pipe", "coalesce", "repartition", "repartitionAndSortWithinPartitions"
-				, "substract", "cartesian"
+				, "substract"
 
 				
 				,"parallelize","combineByKey", "mapToPair","textFile"};
@@ -37,13 +37,15 @@ public class Variables
 	// Any method of the kind *By or *ByKey can result in shuffle, that's why here we will place the By method's that we know are transformation and will not create a new stage
 	public static String[] methodsByTransformation = {"combineByKey", "groupByKey" };
 
-	public static String[] clearsPartitioner = { "map", "flatMap", "union", "intersection", "distinct", };
-	public static String[] preservesPartitioner = { "filter", "sample", "groupByKey" };
-	
+	public static String[] clearsPartitioner = { "cartesian", "map", "mapToPair", "flatMap", "union", "intersection", "distinct", "sortByKey", "repartition"};
+	public static String[] preservesPartitioner = { "filter", "sample", "join", "cogroup",  "pipe", "repartitionAndSortWithinPartitions", "parallelize", "textFile", "leftOuterJoin", "rightOuterJoin"};
+
+	// coalesce -> if shuffle clearrPartitioner
+	// substract not found (supposed to be in rdd)
 	
 	/*
 	 * Methods not sure about:
-	 * groupByKey, reduceByKey, aggregateByKey
+	 * groupByKey, reduceByKey, aggregateByKey, combineByKey, cartesian
 	 */
 	
 	/*

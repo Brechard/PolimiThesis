@@ -84,6 +84,10 @@ public class Thesis {
 					jobs++;
 					if (file.charAt(m.start() - 2) != ')' && (CheckHelper.checkRDD(cache, listRDDs) || CheckHelper.checkSC(cache, listSC))) 
 						s = cache+ "." +m.group();
+					else {
+						int start = SearchHelper.searchStartParenthesisBlock(file, m.start());
+						s = file.substring(start, m.start()) +"."+ m.group();
+					}
 //					map.put(m.start() - 1, s); We are not using TreeMap because it is too slow
 					actionList.add(String.valueOf(m.start() +"-"+s));
 				} 
@@ -194,8 +198,8 @@ public class Thesis {
 			System.out.println("\n>> generate");
 			System.out.println("beginning: " +beginning+"\n");
 			System.out.println("Block: " +block+"\n");
-			System.out.println("PARENT: ");
-			prettyPrint(child2);	
+//			System.out.println("PARENT: ");
+//			prettyPrint(child2);	
 		}
 		String cache = "";
 		List<String> forward = new ArrayList<String>(); 	
@@ -206,6 +210,8 @@ public class Thesis {
 		// First we read the block to create the relations inside this block backwards, in order to do it we need to read it forward and analyze it backwards		
 		forward = FindHelper.findMethods(block, beginning);
 				
+		System.out.print("Forward: ");
+		prettyPrint(forward);
 		/*
 		for (int b = 0; b < rddsParentsId.size() ; b++) {
 			System.out.println("generate, rddchildId: " +b+": "+rddsParentsId.get(b));
@@ -315,20 +321,33 @@ public class Thesis {
 					int start = pos + method.length();
 					MethodsType type = CheckHelper.checkMethod(method);
 					int posReal = Integer.valueOf(forward.get(j - 1).split("-")[2]);
-//					System.out.println("Second loop, check if last method: "+method+", is combine, start: " +block.charAt(start)+ ", +1: " +block.charAt(start + 1));
-					if(block.charAt(start + 1) != ')'){ // The last method of the block is combine Method
-						int endBlock = SearchHelper.searchEndBlock(start, 1, block);
+					System.out.println("Second loop, check if last method: "+method+", is combine, start: " +block.charAt(start)+ ", +1: " +block.charAt(start + 1));
+					if(CheckHelper.checkCombine(method)){ // The last method of the block is combine Method
+						int endBlock = SearchHelper.searchEndBlock(start - 1, 0, block);
 						cache = FindHelper.findCache(endBlock, block);
 						System.out.println("position cero");
+						
+						if(block.charAt(start + 1) != '('){ // Probably not applied directly to a variable
+							int start2= start + 1;
+							int end = SearchHelper.searchEndParenthesis(start2, block);
+							System.out.println("Applied to: " +block.substring(start2, end));							
+							if(!CheckHelper.checkRDD(block.substring(start2, end).replace(" ","").replaceAll("\\(","").replaceAll("\\)", ""), listRDDs)){
+								List<Pair> list = new ArrayList<Pair>();
+								list.add(new Pair(block.substring(start2, end +1), posReal +method.length()));
+								generate(list, parents.get(p), parents2.get(position), rddsParentsId.get(position));					
+								continue;
+							}
+						}
 						position = position + 1;
 						changedPosition = true;
-						prettyPrint(parents2);
-						prettyPrint(stagesList);
+//						prettyPrint(parents2);
+//						prettyPrint(stagesList);
 						if (CheckHelper.checkRDD(cache, listRDDs) || CheckHelper.checkSC(cache, listSC)) { 
 							if(type != MethodsType.shuffle) position = 0; // If the method is not a shuffle the following methods have to be on the same stage as this method
-//							System.out.println("Combine method with variable: " +cache+", childId: " +parents2.get(position).getId()+", in 1");
+							System.out.println("Combine method with variable: " +cache+", childId: " +parents2.get(position).getId()+", in 1");
 //							if (changedPosition)
 //								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
+							prettyPrint(forward);
 							generate(FindHelper.findBlock(cache, posReal, file), parents.get(p), parents2.get(position), rddsParentsId.get(position));					
 						} else {
 							if(!CheckHelper.checkCombine(method)){
@@ -377,8 +396,14 @@ public class Thesis {
 						} else {
 							position = position + 1;							
 						}
-						changedPosition = true;							
-						if (CheckHelper.checkRDD(cache, listRDDs) || CheckHelper.checkSC(cache, listSC)) { 
+						changedPosition = true;
+						int start2 = SearchHelper.searchStartParenthesisBlock(block, pos);
+						System.out.println("Applied to: " +block.substring(start2, pos));							
+						Boolean search = true;
+						if(!CheckHelper.checkRDD(block.substring(start2, pos).replace(" ","").replaceAll("\\(","").replaceAll("\\)", ""), listRDDs))
+							search = false;
+
+						if (search && (CheckHelper.checkRDD(cache, listRDDs) || CheckHelper.checkSC(cache, listSC))) { 
 							String methodBefore ="";
 							if (j - 1 >= 0) {
 								methodBefore = forward.get(j - 1).split("-")[1];
@@ -425,11 +450,15 @@ public class Thesis {
 							}
 //							if (changedPosition)
 //								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
-							int start = SearchHelper.searchStartParenthesisBlock(block, pos);
-							String subBlock = block.substring(start, pos);
+							int start = SearchHelper.searchStartParenthesisBlock(block, pos - 2);
+							System.out.println("block: " +block);
+							String subBlock = block.substring(start, pos - 2);
+							if(subBlock.charAt(0) == '('){
+								subBlock = subBlock.substring(1);
+							}
 							System.out.println("Written combine method: " +subBlock+", childId: " +parents2.get(position).getId()+", in p2: " +position+ ", rddsParentsId: " +rddsParentsId.get(position));
 							List<Pair> pairL = new ArrayList<Pair>();
-							pairL.add(new Pair(subBlock, start));
+							pairL.add(new Pair(subBlock, posReal+start));
 							generate(pairL, parents.get(p), parents2.get(position), rddsParentsId.get(position));
 						}	
 						if (changedPosition) {

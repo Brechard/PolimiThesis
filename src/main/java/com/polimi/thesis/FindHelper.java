@@ -9,6 +9,8 @@ import java.util.regex.Pattern;
 
 import com.polimi.thesis.Variables.MethodsType;
 
+import scala.tools.asm.util.CheckMethodAdapter;
+
 public class FindHelper {
 
 	/*
@@ -58,21 +60,52 @@ public class FindHelper {
 			// Now create matcher object.
 			Matcher m = r.matcher(file.replace(" ", ""));
 			
-			System.out.println(search);			
 			while(m.find()){
 		        String b =  m.group();
 		        String var = b.split("=")[0];
-				System.out.println("FIND: " +m.group()+", already: " +listRDDs.contains(var));
 		        if(!listRDDs.contains(var))
 		        	aux.add(var);
 			}			
 		}
+		aux.addAll(findRDDsComplex(file));
 		listRDDs.addAll(aux);
 		for (String s : listRDDs)
 			System.out.println(">>>>>> " +s);
 		return listRDDs;
 	}
 	
+	private static List<String> findRDDsComplex(String file){
+		List<String> aux = new ArrayList<String>();
+		String search = "\\w+\\s*=";
+		// Create a Pattern object
+		Pattern r = Pattern.compile(search);
+		// Now create matcher object.
+		Matcher m = r.matcher(file);
+
+		while(m.find()){
+			String pRDD = m.group().split("=")[0];
+			int l = m.start() + m.group().length();
+			while(file.charAt(l) == ' ')
+				l++;
+			if(file.charAt(l) == '('){ // Possible RDD created
+				int end = SearchHelper.searchEndParenthesis(l, file);
+				if(file.charAt(end + 1) == '.'){
+					int i = end + 2;
+					while(file.charAt(i) == ' ')
+						i++;
+					int j = i;
+					while(Character.isLetterOrDigit(file.charAt(j)) || file.charAt(j) == '_')
+						j++;
+					String method = file.substring(i,j);
+					if(CheckHelper.checkMethod(method) != MethodsType.others)
+						aux.add(pRDD.replaceAll(" ", ""));					
+				}
+					
+			}
+		}
+		return aux;
+	}
+	 
 	public static Set<String> findSC(String file){
 
         System.out.println(">> findSC");
@@ -167,10 +200,12 @@ public class FindHelper {
 	 */
 	public static List<String> findMethods(String block, int beginning){
 		List<String> methods = new ArrayList<String>();
-		Pattern r1 = Pattern.compile("\\w*");
+		Pattern r1 = Pattern.compile("\\w+");
 		Matcher m1 = r1.matcher(block);
 		int end = 0;
 		while (m1.find()) {
+			if((m1.start() - 1) >= 0 && block.charAt(m1.start() - 1) == '(')
+				end = SearchHelper.searchEndParenthesis(m1.start() - 1, block); // We search only the methods in the main block, not inside the parenthesis
 			if ((m1.start() - 1) >= 0 && block.charAt(m1.start() - 1) == '.' && CheckHelper.checkMethod(m1.group()) != MethodsType.others) { // Method found
 				if (m1.start() > end) {
 					methods.add(String.valueOf(m1.start()) +"-"+ m1.group() +"-"+ String.valueOf(m1.start() + beginning));
@@ -188,10 +223,12 @@ public class FindHelper {
 		
 		List<Integer> start = findRDD(rdd, actualPos, file);	
 		List<Pair> pairs = new ArrayList<Pair>();
-		System.out.println("findBlock(" +rdd+") start: " +start);
 		for(Integer i: start){
 			pairs.add(new Pair(file.substring(i, SearchHelper.searchEndBlock(i, 0, file)), i));
 		}		
+		System.out.println("RDD: " +rdd+ ", posReal: " +actualPos);
+		Thesis.prettyPrint(pairs);
+		Thesis.prettyPrint(start);
 		return pairs;
 	}
 	
@@ -217,9 +254,7 @@ public class FindHelper {
         int length = s.length();
         int i = 1;
 		// Since the actual position sent is the beginning of the method aplied to it, and we want to avoid to find the same line as we were just send we have to consider that this line could be s = s.method
-		int end = actualPos - length*2 - 6;
-        System.out.println(">> findRDD: " +s+", actualPos: " +actualPos+ ", file: " +file.length()+ ", end "+end);
-        
+		int end = actualPos - length*2 - 6;        
 		while (i < end) {  // Recorremos la expresión carácter a carácter		
 			if(file.substring(i, i + length).equals(s)
 					&& !Character.isLetterOrDigit(file.charAt(i + length + 1)) && file.charAt(i + length + 1) != '_'
