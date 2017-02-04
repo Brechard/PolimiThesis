@@ -226,9 +226,6 @@ public class FindHelper {
 		for(Integer i: start){
 			pairs.add(new Pair(file.substring(i, SearchHelper.searchEndBlock(i, 0, file)), i));
 		}		
-		System.out.println("RDD: " +rdd+ ", posReal: " +actualPos);
-		Thesis.prettyPrint(pairs);
-		Thesis.prettyPrint(start);
 		return pairs;
 	}
 	

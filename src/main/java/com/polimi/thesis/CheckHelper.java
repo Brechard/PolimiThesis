@@ -91,6 +91,22 @@ public class CheckHelper {
 		return MethodsType.others;
 	}
 	
+	public static Boolean checkDependsOnPartitioner(String method){
+		for (int i = 0; i < Variables.dependsOnPartitioner.length; i++) {
+			if(method.equals(Variables.dependsOnPartitioner[i]))
+				return true;
+		}
+		return false;
+	}
+	
+	public static Boolean checkCleansPartitioner(String method){
+		for (int i = 0; i < Variables.clearsPartitioner.length; i++) {
+			if(method.equals(Variables.clearsPartitioner[i]))
+				return true;
+		}
+		return false;		
+	}
+	
 	public static boolean checkRDD(String word, Set<String> listRDDs){
 //		System.out.println("checkRDD: " +word);
 		for(String s: listRDDs){
@@ -113,7 +129,7 @@ public class CheckHelper {
 		int i = pos;
 		while(i < file.length() && file.charAt(i) == ' ') 
 			i++;
-		System.out.println("Char: " +file.charAt(i)+",i: " +i+", pos: " +pos);
+//		System.out.println("Char: " +file.charAt(i)+",i: " +i+", pos: " +pos);
 		if(file.charAt(i) == '=')
 			return true;
 		else return false;

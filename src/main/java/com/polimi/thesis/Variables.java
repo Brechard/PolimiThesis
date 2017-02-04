@@ -6,8 +6,8 @@ public class Variables
 		action, transformation, shuffle, others
 	}
 	
-//	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/BasicConditionalTest.java";	
-	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/SparkJoins.java";	
+	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/BasicConditionalTest.java";	
+
 	public static String pathJSON = "/home/rodrigo/workspace/output.json";	
 
 	public static String[] actions = 
@@ -25,12 +25,12 @@ public class Variables
 				,"parallelize","combineByKey", "mapToPair","textFile"};
 	
 	// A method will shuffle is the partitioner has not been cleared
-	public static String[] shuffles = { "repartition", "cogroup", "distinct", "leftOuterJoin", "rightOuterJoin","sortByKey", "join", "groupByKey"};
+	public static String[] shuffles = {"cogroup", "distinct", "leftOuterJoin", "rightOuterJoin","sortByKey", "join", "groupByKey"};
 		
 	public static String jsonString = "";
 	public static String JSONPath = "methods.json";
 	
-	public static String[] combineMethods = { "join", "union", "intersection", "substract", "cartesian","leftOuterJoin","rightOuterJoin"};
+	public static String[] combineMethods = { "join", "union", "intersection", "substract", "cartesian","leftOuterJoin","rightOuterJoin", "reduceByKey"};
 	
 	public static String[] withInputMethods = { "textFile", "mapToPair", "leftOuterJoin", "rightOuterJoin" };
 
@@ -40,6 +40,7 @@ public class Variables
 	public static String[] clearsPartitioner = { "cartesian", "map", "mapToPair", "flatMap", "union", "intersection", "distinct", "sortByKey", "repartition"};
 	public static String[] preservesPartitioner = { "filter", "sample", "join", "cogroup",  "pipe", "repartitionAndSortWithinPartitions", "parallelize", "textFile", "leftOuterJoin", "rightOuterJoin"};
 
+	public static String[] dependsOnPartitioner = {"join" , "cogroup", "leftOuterJoin", "rightOuterJoin"};
 	// coalesce -> if shuffle clearrPartitioner
 	// substract not found (supposed to be in rdd)
 	

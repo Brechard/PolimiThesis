@@ -15,25 +15,22 @@ public class RDD{
 		this.callSite = callSite;
 		this.id = id;
 		childrenIds = new ArrayList<Integer>();
+		parentsIds = new ArrayList<Integer>();		
 	}
 
 	public void addChildId(int id){
 		childrenIds.add(id);
 	}
 	
-	public void addChildId(List<Integer> ids){
+	public void addChildrenId(List<Integer> ids){
 		childrenIds.addAll(ids);			
 	}
 
 	public void addParentId(int id){
-		if(parentsIds == null)
-			parentsIds = new ArrayList<Integer>();
 		parentsIds.add(id);
 	}
 	
-	public void addParentId(List<Integer> ids){
-		if(parentsIds == null)
-			parentsIds = new ArrayList<Integer>();
+	public void addParentsId(List<Integer> ids){
 		parentsIds.addAll(ids);			
 	}
 
@@ -45,7 +42,7 @@ public class RDD{
 		return callSite;
 	}	
 	
-	public List<Integer> getchildrenId(){
+	public List<Integer> getChildrenId(){
 		return childrenIds;
 	}
 	public List<Integer> getParentsId(){
@@ -58,6 +55,9 @@ public class RDD{
 	}
 	public void setLoop(List<String> loop){
 		this.loop = loop;
+	}
+	public void removeChild(){
+		childrenIds = null;
 	}
 }	
 

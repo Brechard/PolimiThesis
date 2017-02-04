@@ -11,12 +11,13 @@ public class Stage{
 	private Boolean updatedChild;
 
 	public Stage(int id){
+		System.out.println(id);
 		this.id = id;
 		childId = new ArrayList<Integer>();
 		parentId = new ArrayList<Integer>();
 		rdds = new ArrayList<RDD>();
 	}
-	public void addChild(RDD child) {
+	public void addRDD(RDD child) {
 		rdds.add(child);
 	}
 	public void addChildId(int id){
@@ -28,16 +29,13 @@ public class Stage{
 	public List<Integer> getChildId(){
 		return childId;
 	}
-	public void addParent(RDD parent) {
-		rdds.add(parent);
-	}
 	public void addParentId(int id){
 		parentId.add(id);
 	}
-	public void addParentId(List<Integer> ids){
+	public void addParentsIds(List<Integer> ids){
 		parentId.addAll(ids);
 	}
-	public List<Integer> getParentId(){
+	public List<Integer> getParentsIds(){
 		return parentId;
 	}
 	public int getId(){
@@ -55,5 +53,16 @@ public class Stage{
 	public Boolean getUpdatedChild() {
 		return updatedChild;
 	}
-	
+	public Boolean isEmpty(){
+		return rdds.isEmpty();
+	}	
+	public void removeChilds(){
+		childId = null;
+	}
+	public void removeParents(){
+		parentId = null;
+	}
+	public void emptyParents(){
+		parentId = new ArrayList<Integer>();
+	}
 }
