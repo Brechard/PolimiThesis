@@ -61,17 +61,8 @@ public class CheckHelper {
 	// Check if the method receive is a shuflle method, an action, a transformation or is some method that is not from spark
 	public static MethodsType checkMethod(String method){
 		
-		// It is important to check first if it is a shuflle method because TEXTFILE is considered a shuffle and action in the variables and here we want it to be a shuffle
 		if(method.matches(".*By.*")){ // Check if the method passed will shuffle, considering that any transformation of the kind *By or *ByKey can result in shuffle
-			Boolean shuffle = true;
-			for (int i = 0; i < Variables.methodsByTransformation.length; i++) {
-				if(method.equals(Variables.methodsByTransformation[i])){
-					shuffle = false;
-					break;
-				}
-			}
-			if(shuffle)
-				return MethodsType.shuffle;		
+			return MethodsType.shuffle;		
 		}
 		else {
 			for (int i = 0; i < Variables.shuffles.length; i++) {
@@ -98,15 +89,7 @@ public class CheckHelper {
 		}
 		return false;
 	}
-	
-	public static Boolean checkCleansPartitioner(String method){
-		for (int i = 0; i < Variables.clearsPartitioner.length; i++) {
-			if(method.equals(Variables.clearsPartitioner[i]))
-				return true;
-		}
-		return false;		
-	}
-	
+		
 	public static boolean checkRDD(String word, Set<String> listRDDs){
 //		System.out.println("checkRDD: " +word);
 		for(String s: listRDDs){

@@ -33,7 +33,7 @@ public class MainClass {
 	private static List<String> actionList = new ArrayList<String>();
 	
 	private static List<Map<Integer, Stage>> jobsList = new ArrayList<Map<Integer, Stage>>();
-	private static Map<Integer, Stage> stagesList = new HashMap<Integer, Stage>();
+	private static Map<Integer, Stage> stagesMap = new HashMap<Integer, Stage>();
 	private static int nStages;
 	private static List<String> ifs;
 	private static List<String> loops;
@@ -101,7 +101,7 @@ public class MainClass {
 		System.out.println("Number of jobs: " +jobs);
 		for(int i = actionList.size() - 1; i >= 0; i--) { // We iterate over the map with the spark methods
 			jobs--;
-			stagesList = jobsList.get(jobs);
+			stagesMap = jobsList.get(jobs);
 
 			
 			int key = Integer.valueOf(actionList.get(i).split("-")[0]);
@@ -133,22 +133,24 @@ public class MainClass {
 			int n = 0;
 			if(pairMapInt != null)
 				n = pairMapInt.getnStages();
-			pairMapInt = CreateStages.create(stagesList, n);
-			stagesList = pairMapInt.getStagesList();
-			jobsList.set(jobs, stagesList);
+			pairMapInt = CreateStages.create(stagesMap, n);
+			stagesMap = pairMapInt.getStagesList();
+			jobsList.set(jobs, stagesMap);
 		}
 
-		prettyPrint(jobsList);
+//		prettyPrint(jobsList);
 		nStages = -1;
 		for(int i = actionList.size() - 1; i >= 0; i--) { // We iterate over the map with the spark methods
 			nStages += jobsList.get(i).size();
 		}
 		System.out.println("Number of stages: " +nStages);
 		for(int i = actionList.size() - 1; i >= 0; i--) { // We iterate over the map with the spark methods
-			stagesList = jobsList.get(i);
+			stagesMap = jobsList.get(i);
 			updateStages();
+			cleanJSON();
 		}
 		
+		System.out.println("\nNumber of jobs: " +jobsList.size());
 		prettyPrint(jobsList);
 		
 		System.out.println("ifs   -> " +ifs);
@@ -191,7 +193,7 @@ public class MainClass {
 		for (int b = 0; b < rddsParentsId.size() ; b++) {
 			System.out.println("generate, rddchildId: " +b+": "+rddsParentsId.get(b));
 		}
-		if (rddsParentsId.isEmpty()) {		int nStages = stagesList.size() - 1;
+		if (rddsParentsId.isEmpty()) {		int nStages = stagesMap.size() - 1;
 
 			System.out.println("generate, rddchildId is empty");			
 		}
@@ -207,9 +209,16 @@ public class MainClass {
 //			System.out.println("Received Method: " +method+ ", type: " +CheckHelper.checkMethod(method)+", childId: " +child2.getId()+", rddsParentsId: " +childId+", pos: " +pos);
 			Stage childCache = child2;
 
-
+			// Find the child RDD for the partitioner
+			List<RDD> rddsChild1 = child2.getRDDs();
+			RDD rddChild1 = null;
+			if(rddsChild1.size() > 0)
+				rddChild1 = rddsChild1.get(0);
+			String s = "";
+			if(rddChild1 != null)
+				s = rddChild1.getCallSite().split("at")[0].replaceAll(" ", "");
 			
-				RDD rdd1 = createRDD(method+" at char " +pos);
+				RDD rdd1 = createRDD(method+" at char " +pos, method, s);
 				PairInside inside = CheckHelper.checkInside(Integer.valueOf(pos), "if", ifs, loops);
 				if(inside.getInside())
 					rdd1.setCondition(inside.getCondition());
@@ -223,9 +232,9 @@ public class MainClass {
 //					System.out.println("Stage: "+child2.id);
 //					prettyPrint(child2);
 					if(child2.getRDDs().size() == 0){ // If in the stage there are still not rdds this means that the rdd will have his child in another stage
-						List<Integer> childrentages = child2.getChildId();
-						for(Integer id: childrentages){
-							Stage stageChild = stagesList.get(id);
+						List<Integer> childrenStages = child2.getChildId();
+						for(Integer id: childrenStages){
+							Stage stageChild = stagesMap.get(id);
 //							System.out.println("Stage list id: " +id+", being search by: " +child2.id);
 //							prettyPrint(stagesList);
 							List<RDD> rddsChild = stageChild.getRDDs();
@@ -466,7 +475,7 @@ public class MainClass {
 						generate(FindHelper.findBlock(cache, posReal, file), parentsList.get(position), rddsParentsId.get(position));					
 					} else if(CheckHelper.checkSC(cache, listSC)) { // If the method is applied directly to an SC it means the stage finishes here so we have to add it to the stageList
 //						System.out.println("Method applied to a SC, put in the stageList");
-						stagesList.put(parentsList.get(position).getId(), parentsList.get(position));											
+						stagesMap.put(parentsList.get(position).getId(), parentsList.get(position));											
 					} else {
 						System.err.println("Error in the code? " +cache+", block: " +block);
 					}
@@ -496,14 +505,14 @@ public class MainClass {
 		
 		List<Stage> childrenStagesList = new ArrayList<Stage>();
 		List<Integer> keys = new ArrayList<Integer>();
-		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet())
+		for (Map.Entry<Integer, Stage> entry : stagesMap.entrySet())
 			keys.add(entry.getKey());
 
 		System.out.println("\n\n\n\n updateStages, " +keys);
-		prettyPrint(stagesList);
+//		prettyPrint(stagesMap);
 
 		// Find the stage that does not have any child wich will be the last stage, from there we will order the others ("generation" by "generation"), updating childrenId and parentsId
-		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
+		for (Map.Entry<Integer, Stage> entry : stagesMap.entrySet()){
 			Stage stage = entry.getValue();
 			if(stage.getChildId().isEmpty()){
 				int oldId = stage.getId();
@@ -544,32 +553,32 @@ public class MainClass {
 //		System.out.println("Size: "+keys.size());
 		for (int i = 0; i < keys.size(); i++) {
 			Stage stage ;
-			if(stagesList.containsKey(keys.get(i)))
-				stage = stagesList.get(keys.get(i)); //Cache where i will put the stage
+			if(stagesMap.containsKey(keys.get(i)))
+				stage = stagesMap.get(keys.get(i)); //Cache where i will put the stage
 			else continue;
 			
 			Stage cache = null;
-			if(stagesList.containsKey(stage.getId()))
-				cache = stagesList.get(stage.getId());
+			if(stagesMap.containsKey(stage.getId()))
+				cache = stagesMap.get(stage.getId());
 			if(cache != null){
 //				System.out.println("Chache: " +stage.getId());
 	//			prettyPrint(cache);
 			}
 			if(keys.get(i) != stage.getId()){
 //				System.out.println("Put in: " +stage.getId()+", remove in: " +keys.get(i));
-				stagesList.put(stage.getId(), stage);
-				stagesList.remove(keys.get(i));
+				stagesMap.put(stage.getId(), stage);
+				stagesMap.remove(keys.get(i));
 			}
 			int pos = -1;
 			while(cache != null && cache.getId() != pos){
 				Stage aux = cache;
 				pos = aux.getId();
 
-				cache = stagesList.get(pos);
+				cache = stagesMap.get(pos);
 //				System.out.println("Cache: ");
 //				prettyPrint(cache);
 //				System.out.println("Put in: " +pos);
-				stagesList.put(pos, aux);
+				stagesMap.put(pos, aux);
 			}
 		}
 
@@ -577,9 +586,9 @@ public class MainClass {
 //		prettyPrint(stagesList);
 
 		for(Integer i : keys){
-			if(i >= keys.size() + (nStages+1) && stagesList.containsKey(i)){
+			if(i >= keys.size() + (nStages+1) && stagesMap.containsKey(i)){
 				System.out.println("\n\n\nremove: "+i+"\n\n\n");
-				stagesList.remove(i);				
+				stagesMap.remove(i);				
 			}
 		}
 		
@@ -588,17 +597,17 @@ public class MainClass {
 //		System.out.println("\n\n\n\n");
 
 		// Once the stages have been ordered we set the parents ids of the stages (if a stage is my child, I am his father), removing the previous one
-		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
+		for (Map.Entry<Integer, Stage> entry : stagesMap.entrySet()){
 			entry.getValue().emptyParents();
 		}
 
-		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
+		for (Map.Entry<Integer, Stage> entry : stagesMap.entrySet()){
 			Stage stage = entry.getValue();
 			List<Integer> childrenIds = stage.getChildId();
 			System.out.println("Stage: "+stage.getId()+ ", children: " +childrenIds);
 			for(Integer id: childrenIds){
 //				System.out.println("Id of a child: " +id);
-				Stage child = stagesList.get(id);
+				Stage child = stagesMap.get(id);
 //				prettyPrint(child);
 //				System.out.println("ID of parent: " +stage.getId());
 				child.addParentId(stage.getId());
@@ -614,7 +623,7 @@ public class MainClass {
 		List<Stage> childrenStagesList = new ArrayList<Stage>();
 		System.out.println("\nModifie stage, oldId: " +oldId+ ", newId: " +newId);
 		
-		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
+		for (Map.Entry<Integer, Stage> entry : stagesMap.entrySet()){
 			Stage stage = entry.getValue();
 			if(stage == stageCalling || (stage.getUpdatedChild() != null && stage.getUpdatedChild())) continue;
 			// Update in parents the childId
@@ -635,8 +644,22 @@ public class MainClass {
 		return childrenStagesList;
 	}
 	
-	public static RDD createRDD(String rdd){
-		return new RDD(rdd, rdds++);
+	public static void cleanJSON(){
+		Stage stage;
+		for (Map.Entry<Integer, Stage> entry : stagesMap.entrySet()){
+			stage = entry.getValue();
+			List<RDD> listRDDs = stage.getRDDs();
+			for(RDD rdd: listRDDs){
+				rdd.removeChildrenIds();
+				rdd.removePartitioner();
+			}
+			stage.removeChilds();
+		}
+	}
+	
+	public static RDD createRDD(String rdd, String method, String methodChild){
+		
+		return new RDD(rdd, rdds++, new Partitioner(method, methodChild).getPartitioner());
 	}
 	
 	public static Stage createStage(){

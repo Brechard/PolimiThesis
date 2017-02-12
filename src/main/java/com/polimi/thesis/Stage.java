@@ -11,7 +11,7 @@ public class Stage{
 	private Boolean updatedChild;
 
 	public Stage(int id){
-		System.out.println(id);
+//		System.out.println(id);
 		this.id = id;
 		childId = new ArrayList<Integer>();
 		parentId = new ArrayList<Integer>();

@@ -6,7 +6,7 @@ public class Variables
 		action, transformation, shuffle, others
 	}
 	
-	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/BasicConditionalTest.java";	
+	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/SparkJoins.java";	
 
 	public static String pathJSON = "/home/rodrigo/workspace/output.json";	
 
@@ -40,7 +40,7 @@ public class Variables
 	public static String[] clearsPartitioner = { "cartesian", "map", "mapToPair", "flatMap", "union", "intersection", "distinct", "sortByKey", "repartition"};
 	public static String[] preservesPartitioner = { "filter", "sample", "join", "cogroup",  "pipe", "repartitionAndSortWithinPartitions", "parallelize", "textFile", "leftOuterJoin", "rightOuterJoin"};
 
-	public static String[] dependsOnPartitioner = {"join" , "cogroup", "leftOuterJoin", "rightOuterJoin"};
+	public static String[] dependsOnPartitioner = {"join" , "cogroup", "leftOuterJoin", "rightOuterJoin", "reduceByKey", "combineByKey", "groupByKey", "aggregateByKey"};
 	// coalesce -> if shuffle clearrPartitioner
 	// substract not found (supposed to be in rdd)
 	
