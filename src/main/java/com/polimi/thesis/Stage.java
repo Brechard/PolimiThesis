@@ -21,18 +21,26 @@ public class Stage{
 		rdds.add(child);
 	}
 	public void addChildId(int id){
+		if(childId == null)
+			childId = new ArrayList<Integer>();
 		childId.add(id);
 	}
 	public void addChildId(List<Integer> ids){
+		if(childId == null)
+			childId = new ArrayList<Integer>();
 		childId.addAll(ids);
 	}
-	public List<Integer> getChildId(){
+	public List<Integer> getChildrenId(){
 		return childId;
 	}
 	public void addParentId(int id){
+		if(parentId == null)
+			parentId = new ArrayList<Integer>();
 		parentId.add(id);
 	}
 	public void addParentsIds(List<Integer> ids){
+		if(parentId == null)
+			parentId = new ArrayList<Integer>();
 		parentId.addAll(ids);
 	}
 	public List<Integer> getParentsIds(){
@@ -56,10 +64,10 @@ public class Stage{
 	public Boolean isEmpty(){
 		return rdds.isEmpty();
 	}	
-	public void removeChilds(){
+	public void removeChildrenIds(){
 		childId = null;
 	}
-	public void removeParents(){
+	public void removeParentsIds(){
 		parentId = null;
 	}
 	public void emptyParents(){

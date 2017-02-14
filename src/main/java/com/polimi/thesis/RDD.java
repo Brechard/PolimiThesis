@@ -20,18 +20,26 @@ public class RDD{
 	}
 
 	public void addChildId(int id){
+		if(childrenIds == null)
+			childrenIds = new ArrayList<Integer>();
 		childrenIds.add(id);
 	}
 	
 	public void addChildrenId(List<Integer> ids){
+		if(childrenIds == null)
+			childrenIds = new ArrayList<Integer>();
 		childrenIds.addAll(ids);			
 	}
 
 	public void addParentId(int id){
+		if(parentsIds == null)
+			parentsIds = new ArrayList<Integer>();
 		parentsIds.add(id);
 	}
 	
 	public void addParentsId(List<Integer> ids){
+		if(parentsIds == null)
+			parentsIds = new ArrayList<Integer>();
 		parentsIds.addAll(ids);			
 	}
 
@@ -60,6 +68,9 @@ public class RDD{
 	public void removeChildrenIds(){
 		childrenIds = null;
 	}
+	public void removeParentsIds(){
+		parentsIds = null;
+	}
 
 	public String getPartitioner() {
 		return partitioner;
@@ -71,6 +82,9 @@ public class RDD{
 	
 	public void removePartitioner(){
 		this.partitioner = null;
+	}
+	public void setId(int id){
+		this.id = id;
 	}
 }	
 
