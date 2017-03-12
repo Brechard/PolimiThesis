@@ -73,4 +73,7 @@ public class Stage{
 	public void emptyParents(){
 		parentId = new ArrayList<Integer>();
 	}
+	public void removeUpdated(){
+		updatedChild = null;
+	}
 }

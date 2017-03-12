@@ -30,15 +30,14 @@ public class MainClass {
 	private static Set<String> listRDDs;
 	private static Set<String> listSC;
 	
-	private static List<String> actionList = new ArrayList<String>();
-	
-	private static List<Map<Integer, Stage>> jobsList = new ArrayList<Map<Integer, Stage>>();
+	private static List<Job> jobsList = new ArrayList<Job>();
 	private static Map<Integer, Stage> stagesMap = new HashMap<Integer, Stage>();
 	private static int nStages;
 	private static List<String> ifs;
 	private static List<String> loops;
 	private static PairMapInt pairMapInt;
 
+	//  List of conditional cases supported (edges)
 	public static void main(String[] args) throws Exception {
 		jobs = 0; stages = 0; rdds = 0; 
 
@@ -79,33 +78,34 @@ public class MainClass {
 				MethodsType type = CheckHelper.checkMethod(m.group());
 				if (type == MethodsType.action) {
 					String s = m.group();
-					jobs++;
 					if (file.charAt(m.start() - 2) != ')' && (CheckHelper.checkRDD(cache, listRDDs) || CheckHelper.checkSC(cache, listSC))) 
 						s = cache+ "." +m.group();
 					else {
 						int start = SearchHelper.searchStartParenthesisBlock(file, m.start());
-						s = file.substring(start, m.start()) +"."+ m.group();
+						s = file.substring(start, m.start()) + m.group();
 					}
-//					map.put(m.start() - 1, s); We are not using TreeMap because it is too slow
-					actionList.add(String.valueOf(m.start() +"-"+s));
-				} 
+					String callSite = String.valueOf(m.start() +"-"+s);
+					Job job = new Job(jobs++, callSite);
+					System.out.println(">>>>>>>>>>>>>>>>> " +callSite);
+					PairInside inside = CheckHelper.checkInside(m.start(), "if", ifs, loops);
+					if(inside.getInside())
+						job.setCondition(inside.getCondition());
+					inside = CheckHelper.checkInside(m.start(), "loop", ifs, loops);
+					if(inside.getInside())
+						job.setLoop(inside.getCondition());
+					jobsList.add(job);					
+				}
 			}
 			if(!m.group().replaceAll(" ", "").equals(""))
 				cache = m.group();
 		}
-
-		for(int i = 0; i < actionList.size(); i++) { // We iterate over the map with the spark methods
-			Map<Integer, Stage> map = new HashMap<Integer, Stage>();
-			jobsList.add(map);
-		}
 		System.out.println("Number of jobs: " +jobs);
-		for(int i = actionList.size() - 1; i >= 0; i--) { // We iterate over the map with the spark methods
-			jobs--;
-			stagesMap = jobsList.get(jobs);
-
+		for(int i = jobs - 1; i >= 0; i--) { // We iterate over the map with the spark methods
+			Job job = jobsList.get(i);
+			stagesMap = job.getStages();
 			
-			int key = Integer.valueOf(actionList.get(i).split("-")[0]);
-			String method = actionList.get(i).split("-")[1];
+			int key = Integer.valueOf(job.getCallSite().split("-")[0]);
+			String method = job.getCallSite().split("-")[1];
 			String rddOrSc = "";
 			if (method.contains(".")) {				
 				String[] w = method.split("\\.");
@@ -114,7 +114,7 @@ public class MainClass {
 			}
   
 			char c = file.charAt(key - 2);
-			System.out.println("\n\nAction found: " +method+ ", a new job should be generated, jobs = "+jobs+"\n\n");
+			System.out.println("\n\nAction found: " +method+ ", a new job should be generated, jobs = "+i+"\n\n");
 //			prettyPrint(actionList.get(i));
 
 			// We have to find the block of code that this action refers to
@@ -135,17 +135,18 @@ public class MainClass {
 				n = pairMapInt.getnStages();
 			pairMapInt = CreateStages.create(stagesMap, n);
 			stagesMap = pairMapInt.getStagesList();
-			jobsList.set(jobs, stagesMap);
+			job.setStages(stagesMap);
+			jobsList.set(i, job);
 		}
 
 //		prettyPrint(jobsList);
 		nStages = -1;
-		for(int i = actionList.size() - 1; i >= 0; i--) { // We iterate over the map with the spark methods
-			nStages += jobsList.get(i).size();
+		for(int i = jobs - 1; i >= 0; i--) { // We iterate over the map with the spark methods
+			nStages += jobsList.get(i).getStages().size();
 		}
 		System.out.println("Number of stages: " +nStages);
-		for(int i = actionList.size() - 1; i >= 0; i--) { // We iterate over the map with the spark methods
-			stagesMap = jobsList.get(i);
+		for(int i = jobs - 1; i >= 0; i--) { // We iterate over the map with the spark methods
+			stagesMap = jobsList.get(i).getStages();
 			updateStages();	
 		}
 		updateRDDs();
@@ -648,8 +649,8 @@ public class MainClass {
 	public static void updateRDDs(){
 		Stage stage;
 		rdds--;
-		for(Map<Integer, Stage> i: jobsList){
-			for (Map.Entry<Integer, Stage> entry : i.entrySet()){
+		for(Job i: jobsList){
+			for (Map.Entry<Integer, Stage> entry : i.getStages().entrySet()){
 				stage = entry.getValue();
 				List<RDD> listRDDs = stage.getRDDs();
 				for(RDD rdd: listRDDs){
@@ -671,8 +672,8 @@ public class MainClass {
 	
 	public static void cleanJSON(){
 		Stage stage;
-		for(Map<Integer, Stage> i: jobsList){
-			for (Map.Entry<Integer, Stage> entry : i.entrySet()){
+		for(Job i: jobsList){
+			for (Map.Entry<Integer, Stage> entry : i.getStages().entrySet()){
 				stage = entry.getValue();
 				List<RDD> listRDDs = stage.getRDDs();
 				for(RDD rdd: listRDDs){
@@ -680,6 +681,7 @@ public class MainClass {
 					rdd.removePartitioner();
 				}
 				stage.removeChildrenIds();
+				stage.removeUpdated();
 			}
 		}
 	}

@@ -24,6 +24,7 @@ public class Partitioner {
 		}
 		if(partitioners.containsKey(methodChild)){
 			partitioner = partitioners.get(methodChild);
+			// Check if error here
 			if(partitioners.containsKey(methodChild)){
 				String part = partitioners.get(method);
 				System.out.println("Received: " +method+ ", childMethod: " +methodChild+ ", partition: " +part);
@@ -73,7 +74,7 @@ public class Partitioner {
         myMap.put("filter", "preserves");
         myMap.put("flatMap", "");
         myMap.put("mapPartitions", ""); 						// Check
-        myMap.put("mapPartitionsWithIndex", "none"); 			// Check
+        myMap.put("mapPartitionsWithIndex", ""); 			// Check
         myMap.put("sample", "preserves");
         myMap.put("union", "DONT KNOW HOW TO DO");				// Check
         myMap.put("intersection", "");
