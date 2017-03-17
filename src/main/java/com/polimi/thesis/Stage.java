@@ -76,4 +76,15 @@ public class Stage{
 	public void removeUpdated(){
 		updatedChild = null;
 	}
+	public void addAll(Stage stage){
+		List<RDD> notContained = new ArrayList<RDD>(stage.getRDDs());
+		notContained.removeAll(rdds);
+		rdds.addAll(notContained);
+		List<Integer> not = new ArrayList<Integer>(stage.getChildrenId());
+		not.removeAll(childId);
+		childId.addAll(not);
+		not = new ArrayList<Integer>(stage.getParentsIds());
+		not.removeAll(parentId);
+		parentId.addAll(not);
+	}
 }

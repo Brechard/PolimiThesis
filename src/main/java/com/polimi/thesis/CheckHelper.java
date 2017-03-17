@@ -40,6 +40,21 @@ public class CheckHelper {
 		return -1;
 	}
 	
+	public static int checkExistence(String callSite, Stage stage){
+		System.err.println("CheckExistence, Callsite: " +callSite);
+
+		List<RDD> rdds = stage.getRDDs();
+		for(RDD rdd1: rdds){
+			if(rdd1.getCallSite().equals(callSite)){
+				MainClass.prettyPrint(stage);
+				System.err.println(">>>>>>>>>>>: " +rdd1.getId());
+				return rdd1.getId();
+			}
+		}
+		return -1;
+	}
+	
+	
 	
 	public static PairInside checkInside(int pos, String op, List<String> ifs, List<String> loops){
 		List<String> list = loops;

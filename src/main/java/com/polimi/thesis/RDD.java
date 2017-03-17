@@ -8,7 +8,8 @@ public class RDD{
 	private int id;
 	private List<Integer> childrenIds;
 	private List<Integer> parentsIds;
-	private List<String> condition;
+	private List<String> conditionedParent;
+	private List<String> conditionedWithoutChildren;
 	private List<String> loop;
 	private String partitioner;
 	public RDD(String callSite, int id, String  partitioner){
@@ -59,8 +60,16 @@ public class RDD{
 			parentsIds = new ArrayList<Integer>();
 		return parentsIds;
 	}
-	public void setCondition(List<String> condition){
-		this.condition = condition;
+	public void addCondition(String condition){
+		if(conditionedParent == null)
+			conditionedParent = new ArrayList<String>();
+		conditionedParent.add(condition);
+	}
+	public List<String> getCondition(){
+		return conditionedParent;
+	}
+	public void addConditionItSelf(List<String> condition){
+		conditionedWithoutChildren = condition;		
 	}
 	public void setLoop(List<String> loop){
 		this.loop = loop;
@@ -70,6 +79,9 @@ public class RDD{
 	}
 	public void removeParentsIds(){
 		parentsIds = null;
+	}
+	public void removeCondition(){
+		conditionedParent = null;
 	}
 
 	public String getPartitioner() {

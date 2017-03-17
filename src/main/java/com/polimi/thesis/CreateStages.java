@@ -16,6 +16,7 @@ public class CreateStages {
 		System.out.println("\n\n\nCreateStages");
 		stagesMap = new HashMap<Integer, Stage>();
 		Partitioner partitioner = new Partitioner("");
+		removeDuplicatedRDDs(stagesMap2);
 		for (Map.Entry<Integer, Stage> entry : stagesMap2.entrySet()){
 			stage = entry.getValue();
 			List<RDD> listRDDs = stage.getRDDs();
@@ -68,6 +69,58 @@ public class CreateStages {
 
 		removeDuplicatedStages();
 		return new PairMapInt(stagesMap, stages);
+	}
+	
+	private static void removeDuplicatedRDDs(Map<Integer, Stage> stagesMap2){
+		Map<Integer, Integer> idsOfRDDsToRemove = new HashMap<Integer, Integer>(); // key duplicated, value original
+		if(stagesMap2.containsKey(0))
+			stage = stagesMap2.get(0);
+		else return;
+		List<RDD> rdds = stage.getRDDs();
+		for(int i = 0; i < rdds.size(); i++){
+			RDD rdd = rdds.get(i);
+			for(int j = i + 1; j < rdds.size(); j++){
+				RDD rdd2 = rdds.get(j);
+				if(rdd.getCallSite().equals(rdd2.getCallSite())){
+					if(!idsOfRDDsToRemove.containsKey(rdd2.getId()))
+						idsOfRDDsToRemove.put(rdd2.getId(), rdd.getId());
+				}
+			}			
+		}
+		for (Map.Entry<Integer, Integer> entry : idsOfRDDsToRemove.entrySet()){
+			int idRemove = entry.getKey();
+			int idPut = entry.getValue();
+			System.out.println("idRemove: " +idRemove+", idPut: " +idPut);
+		}
+		if(idsOfRDDsToRemove.size() > 0){
+			try {
+				throw new Error("Duplicated RDDs, this should not have happened");
+			} catch (Error e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				System.out.println("Error: " +e);
+			}
+		}
+
+		for (Map.Entry<Integer, Integer> entry : idsOfRDDsToRemove.entrySet()){
+			int idRemove = entry.getKey();
+			int idPut = entry.getValue();
+			System.out.println("idRemove: " +idRemove+", idPut: " +idPut);
+			for(int j = 0; j < rdds.size(); j++){
+				RDD rdd = rdds.get(j);
+				if(rdd.getId() == idRemove){
+					rdds.remove(j);
+				}				
+				if(rdd.getChildrenId().contains(idRemove)){
+					rdd.getChildrenId().remove((int) idRemove);
+					rdd.getChildrenId().add(idPut);
+				}
+				if(rdd.getParentsId().contains(idRemove)){
+					rdd.getParentsId().remove(new Integer(idRemove));
+					rdd.getParentsId().add(idPut);
+				}
+			}
+		}
 	}
 	
 	private static void removeDuplicatedStages(){

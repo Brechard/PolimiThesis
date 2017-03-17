@@ -149,7 +149,7 @@ public class FindHelper {
 					checkIfContainsSparkMethods(file, i, s);	
 			} else if (s.equals("else")){
 				beforeElse = true;
-				posElse = i;
+				posElse = i +s.length();
 			} else if(beforeElse){
 				beforeElse = false;
 				checkIfContainsSparkMethods(file, posElse, "else");					

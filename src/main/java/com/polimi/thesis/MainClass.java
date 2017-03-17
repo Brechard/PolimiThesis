@@ -88,10 +88,10 @@ public class MainClass {
 					Job job = new Job(jobs++, callSite);
 					System.out.println(">>>>>>>>>>>>>>>>> " +callSite);
 					PairInside inside = CheckHelper.checkInside(m.start(), "if", ifs, loops);
-					if(inside.getInside())
+					if(inside.isInside())
 						job.setCondition(inside.getCondition());
 					inside = CheckHelper.checkInside(m.start(), "loop", ifs, loops);
-					if(inside.getInside())
+					if(inside.isInside())
 						job.setLoop(inside.getCondition());
 					jobsList.add(job);					
 				}
@@ -120,15 +120,15 @@ public class MainClass {
 			// We have to find the block of code that this action refers to
 			if(c != ')'){
 				if (CheckHelper.checkRDD(rddOrSc, listRDDs)) { // If it is applied to an RDD we have to find where and how it was created
-					generate(FindHelper.findBlock(rddOrSc, file.length(), file), null, null);
+					generate(FindHelper.findBlock(rddOrSc, file.length(), file), null, null, false);
 				} else { // If it is applied to an sc there is an error				
 					throw new Exception(method+", An action cannnot be applied to an SC: " +rddOrSc+"-"+file.substring(key -20, key - 2)+"-");
 				}
 			} else {
 				int start = SearchHelper.searchStartBlock(key, file);
 				List<Pair> pairL = new ArrayList<Pair>();
-				pairL.add(new Pair(file.substring(start, key), start));
-				generate(pairL, null, null);
+				pairL.add(new Pair(file.substring(start, key - 1), start));
+				generate(pairL, null, null, false);
 			}
 			int n = 0;
 			if(pairMapInt != null)
@@ -149,6 +149,7 @@ public class MainClass {
 			stagesMap = jobsList.get(i).getStages();
 			updateStages();	
 		}
+		prettyPrint(jobsList);
 		updateRDDs();
 		cleanJSON();
 		
@@ -164,14 +165,32 @@ public class MainClass {
 		Gson gson = new GsonBuilder().setPrettyPrinting().create();		
 		System.out.println(gson.toJson(a));
 	}
+
+	public static void generate(List<Pair> pairs, Stage child2, Integer childId, boolean check){
+		int s = pairs.size() - 1;
+		PairInside pairInside = CheckHelper.checkInside(pairs.get(s).getFirstPos(), "if", ifs, loops);
+		List<String> conditions = pairInside.getCondition();
+		while(s >= 0 && pairInside.isInside() || s == pairs.size() - 1){
+			if(pairInside.isInside())
+				generate(pairs.get(s), child2, childId, true);
+			else 
+				generate(pairs.get(s), child2, childId, check);
+			s--;
+			if(s >= 0)
+				pairInside = CheckHelper.checkInside(pairs.get(s).getFirstPos(), "if", ifs, loops);
+		}
+	}
 		
 	/*
 	 * Analyzes a block of code in order to find the relations inside the block
 	 */
-	public static void generate(List<Pair> pairs, Stage child2, Integer childId){
-		Pair pair = pairs.get(pairs.size() - 1);
+	public static void generate(Pair pair, Stage child2, Integer childId, boolean check){
 		String block = pair.getBlock();
 		int beginning = pair.getFirstPos();
+		System.out.println("\n>> generate");
+		System.out.println("Block: " +block+"\n");
+		if(check)
+			System.err.println("CHECK IS TRUE");
 		/*
 		if(jobs == 0){
 			System.out.println("\n>> generate");
@@ -219,46 +238,84 @@ public class MainClass {
 			String s = "";
 			if(rddChild1 != null)
 				s = rddChild1.getCallSite().split("at")[0].replaceAll(" ", "");
-			
-				RDD rdd1 = createRDD(method+" at char " +pos, method, s);
-				PairInside inside = CheckHelper.checkInside(Integer.valueOf(pos), "if", ifs, loops);
-				if(inside.getInside())
-					rdd1.setCondition(inside.getCondition());
+			String callSite = method+" at char " +pos;
+			System.err.println("Method callSite: " +callSite);
+			int exists = -1;
+			if(check)
+				exists = CheckHelper.checkExistence(callSite, child2);
+			RDD rdd1 = null;
+			PairInside inside = null;
+			if(exists >= 0){
+				for(RDD rdd: rddsChild1)
+					if(rdd.getId() == exists){
+						rdd1 = rdd; 
+						System.err.println("RDD already exists: " +rdd.getId());
+					}
+			} else {				
+				rdd1 = createRDD(callSite, method, s);
 				inside = CheckHelper.checkInside(Integer.valueOf(pos), "loop", ifs, loops);
-				if(inside.getInside())
+				if(inside.isInside())
 					rdd1.setLoop(inside.getCondition());
+				inside = CheckHelper.checkInside(Integer.valueOf(pos), "if", ifs, loops);
+			}
+			if(rdd1 == null){
+				try{
+					throw new Error("Error creating RDD");				
+				} catch(Error e){
+					System.out.println("Error: " +e);
+				}
+			}
+			if(inside != null)
+				System.out.println("0Conditioned: " +inside.isInside()+ ", parentId: " +rdd1.getId()+ ", childId = " +childId);									
+				
 //				rdd1.addchildId(child2.getId());
-				if (childId != null){
-					rdd1.addChildId(childId);					
-					// We have to search for the child RDDs in order to put the parentRDDId
+			if (childId != null){
+				rdd1.addChildId(childId);					
+				// We have to search for the child RDDs in order to put the parentRDDId
 //					System.out.println("Stage: "+child2.id);
 //					prettyPrint(child2);
-					if(child2.getRDDs().size() == 0){ // If in the stage there are still not rdds this means that the rdd will have his child in another stage
-						List<Integer> childrenStages = child2.getChildrenId();
-						for(Integer id: childrenStages){
-							Stage stageChild = stagesMap.get(id);
+				if(child2.getRDDs().size() == 0){ // If in the stage there are still not rdds this means that the rdd will have his child in another stage
+					List<Integer> childrenStages = child2.getChildrenId();
+					for(Integer id: childrenStages){
+						Stage stageChild = stagesMap.get(id);
 //							System.out.println("Stage list id: " +id+", being search by: " +child2.id);
 //							prettyPrint(stagesList);
-							List<RDD> rddsChild = stageChild.getRDDs();
-							for(RDD rddChild: rddsChild){
+						List<RDD> rddsChild = stageChild.getRDDs();
+						for(RDD rddChild: rddsChild){
 //								System.out.println("Rdd child: "+rddChild.getId()+", childId: " +childId);
-								if(rddChild.getId() == childId)
-									rddChild.addParentId(rdd1.getId());								
+							if(rddChild.getId() == childId && !rddChild.getParentsId().contains(rdd1.getId())){
+								rddChild.addParentId(rdd1.getId());
+								if(inside != null){
+									System.out.println("1Conditioned: " +inside.isInside()+ ", parentId: " +rdd1.getId()+ ", childId: " +rddChild.getId());									
+								}
+								System.out.println("Added parentId to: " +rddChild.getId());
+								if(inside != null && inside.isInside()){
+									rddChild.addCondition(rdd1.getId()+ ", " +inside.getCondition());
+								}
 							}
-						}						
-					} else {
-						List<RDD> rddsChild2 = child2.getRDDs();
-						for(RDD rddChild2: rddsChild2)
-							if(rddChild2.getId() == childId)
-								rddChild2.addParentId(rdd1.getId());
-					}										
-				}
-				childId = rdd1.getId();				
+						}
+					}						
+				} else {
+					List<RDD> rddsChild2 = child2.getRDDs();
+					for(RDD rddChild2: rddsChild2)
+						if(rddChild2.getId() == childId && !rddChild2.getParentsId().contains(rdd1.getId())){
+							rddChild2.addParentId(rdd1.getId());
+							if(inside != null){
+								System.out.println("2Conditioned: " +inside.isInside()+ ", parentId: " +rdd1.getId()+ ", childId: " +rddChild2.getId());									
+							}
+							System.out.println("2Added parentId to: " +rddChild2.getId());
+							if(inside != null && inside.isInside()){
+								rddChild2.addCondition(rdd1.getId()+ ", " +inside.getCondition());
+							}
+						}
+				}										
+			} else if(inside != null && inside.isInside()){
+				rdd1.addConditionItSelf(inside.getCondition());
+			}
+			childId = rdd1.getId();			
+			if(exists == -1)
 				child2.addRDD(rdd1);
 
-
-				
-				
 //			System.out.println("childId: " +child2.getId()+ " in p2: " +position);
 //			System.out.println("Save childId: " +child2.getId()+ ", rddsParentsId: " +childId+ " in p2: " +position+"\n");
 			parentsList.add(position, child2);
@@ -297,7 +354,6 @@ public class MainClass {
 		// Create dependencies with blocks that appear as variables or inside parenthesis
 		if (forward.size() > 0){
 			for (int j = forward.size(); j >= 0; j--) {
-				
 				if (j == forward.size() && forward.size() > 0) {
 					
 					int pos = Integer.valueOf(forward.get(j - 1).split("-")[0]);
@@ -309,19 +365,19 @@ public class MainClass {
 					if(CheckHelper.checkCombine(method)){ // The last method of the block is combine Method
 						int endBlock = SearchHelper.searchEndBlock(start - 1, 0, block);
 						cache = FindHelper.findCache(endBlock, block);
-//						System.out.println("position cero");
+						System.out.println("Block: " +block);
+						System.out.println("position cero, cache: " +cache);
 						
-						if(block.charAt(start + 1) != '('){ // Probably not applied directly to a variable
-							int start2= start + 1;
-							int end = SearchHelper.searchEndParenthesis(start2, block);
+						int start2= start + 1;
+						int end = SearchHelper.searchEndParenthesis(start2, block);
 //							System.out.println("Applied to: " +block.substring(start2, end));							
-							if(!CheckHelper.checkRDD(block.substring(start2, end).replace(" ","").replaceAll("\\(","").replaceAll("\\)", ""), listRDDs)){
-								List<Pair> list = new ArrayList<Pair>();
-								list.add(new Pair(block.substring(start2, end +1), posReal +method.length()));
-								generate(list, parentsList.get(position), rddsParentsId.get(position));					
-								continue;
-							}
+						if(!CheckHelper.checkRDD(block.substring(start2, end).replace(" ","").replaceAll("\\(","").replaceAll("\\)", ""), listRDDs)){
+							List<Pair> list = new ArrayList<Pair>();
+							list.add(new Pair(block.substring(start2, end +1), posReal +method.length()));
+							generate(list, parentsList.get(position), rddsParentsId.get(position), check);					
+							continue;
 						}
+
 						position = position + 1;
 						changedPosition = true;
 //						prettyPrint(parentsList);
@@ -332,7 +388,7 @@ public class MainClass {
 //							if (changedPosition)
 //								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
 //							prettyPrint(forward);
-							generate(FindHelper.findBlock(cache, posReal, file), parentsList.get(position), rddsParentsId.get(position));					
+							generate(FindHelper.findBlock(cache, posReal, file), parentsList.get(position), rddsParentsId.get(position), check);					
 						} else {
 							if(!CheckHelper.checkCombine(method)){
 //								System.out.println("\n\nDes Changed position\n\n ");
@@ -345,7 +401,7 @@ public class MainClass {
 //							System.out.println("Written combine method: " +subBlock+", childId: " +parentsList.get(position).getId()+", in p2: " +position+ ", p: " +p+ ", rddsParentsId: " +rddsParentsId.get(position));
 							List<Pair> pairL = new ArrayList<Pair>();
 							pairL.add(new Pair(subBlock, start + beginning));
-							generate(pairL, parentsList.get(position), rddsParentsId.get(position));
+							generate(pairL, parentsList.get(position), rddsParentsId.get(position), check);
 						}					
 					} 
 					else 					
@@ -365,7 +421,7 @@ public class MainClass {
 					String methodBefore1 = forward.get(j - 1).split("-")[1];
 					type = CheckHelper.checkMethod(methodBefore1);
 				}
-//				System.out.println("Second loop, method: " +method+ ", p: " +p+ ", rddsParentsId: " +childId+", position: " +position+ ", block:" +block);
+				System.out.println("Second loop, method: " +method+ ", p: " +p+ ", rddsParentsId: " +childId+", position: " +position+ ", block:" +block);
 
 
 				if(block.charAt(pos - 2) == ')'){ // Method not applied directly to a variable, we have to analyze the interior of the parenthesis
@@ -410,7 +466,7 @@ public class MainClass {
 //							if (changedPosition)
 //								System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nChanged position\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ");
 //							System.out.println("Combine method with variable: " +cache+", j: " +j+", childId: " +parentsList.get(position).getId()+", in p2: " +position+ ", p: " +p+ ", rddsParentsId: " +rddsParentsId.get(position)+", position: "+position);
-							generate(FindHelper.findBlock(cache, posReal, file), parentsList.get(position), rddsParentsId.get(position));					
+							generate(FindHelper.findBlock(cache, posReal, file), parentsList.get(position), rddsParentsId.get(position), check);					
 						} else {
 							if (j - 1 >= 0) {
 								String methodBefore = forward.get(j - 1).split("-")[1];
@@ -443,7 +499,7 @@ public class MainClass {
 //							System.out.println("Written combine method: " +subBlock+", childId: " +parentsList.get(position).getId()+", in p2: " +position+ ", rddsParentsId: " +rddsParentsId.get(position));
 							List<Pair> pairL = new ArrayList<Pair>();
 							pairL.add(new Pair(subBlock, posReal+start));
-							generate(pairL, parentsList.get(position), rddsParentsId.get(position));
+							generate(pairL, parentsList.get(position), rddsParentsId.get(position), check);
 						}	
 						if (changedPosition) {
 							if (type == MethodsType.shuffle) {
@@ -474,10 +530,15 @@ public class MainClass {
 					*/
 					if (CheckHelper.checkRDD(cache, listRDDs)) {
 //						System.out.println("Let's recall, block: "+FindHelper.findBlock(cache, posReal, file));
-						generate(FindHelper.findBlock(cache, posReal, file), parentsList.get(position), rddsParentsId.get(position));					
+						generate(FindHelper.findBlock(cache, posReal, file), parentsList.get(position), rddsParentsId.get(position), check);					
 					} else if(CheckHelper.checkSC(cache, listSC)) { // If the method is applied directly to an SC it means the stage finishes here so we have to add it to the stageList
 //						System.out.println("Method applied to a SC, put in the stageList");
-						stagesMap.put(parentsList.get(position).getId(), parentsList.get(position));											
+						int key = parentsList.get(position).getId();
+						if(stagesMap.containsKey(key))
+							stagesMap.get(key).addAll(parentsList.get(position));
+						else 
+							stagesMap.put(parentsList.get(position).getId(), parentsList.get(position));
+						prettyPrint(stagesMap);
 					} else {
 						System.err.println("Error in the code? " +cache+", block: " +block);
 					}
@@ -496,7 +557,7 @@ public class MainClass {
 					String rdd1 = m.group().split("=")[0];
 					String rdd2 = m.group().split("=")[1];
 					if(CheckHelper.checkRDD(rdd1, listRDDs) && CheckHelper.checkRDD(rdd2, listRDDs)){
-						generate(FindHelper.findBlock(rdd2, file.length(), file), child2, childId);					
+						generate(FindHelper.findBlock(rdd2, file.length(), file), child2, childId, check);					
 					}				
 				}
 			}			
@@ -522,7 +583,6 @@ public class MainClass {
 				
 				System.out.println("Stage emptyChild modified, new Id: " +stage.getId()+", oldId: " +oldId);
 				childrenStagesList = updateStageschildId(stage.getId(), oldId, stage, new ArrayList<Stage>());
-				break; // There can not be more than a final stage
 			}				
 		}			
 		
@@ -584,7 +644,7 @@ public class MainClass {
 			}
 		}
 
-//		System.out.println("\n\n\n\n Stages ordered withoud parents");
+//		System.out.println("\n\n\n\n Stages ordered without parents");
 //		prettyPrint(stagesList);
 
 		for(Integer i : keys){
@@ -594,11 +654,15 @@ public class MainClass {
 			}
 		}
 		
-//		System.out.println("\n\n\n\n Stages ordered withoud parents");
+//		System.out.println("\n\n\n\n Stages ordered without parents");
 //		prettyPrint(stagesList);
 //		System.out.println("\n\n\n\n");
 
 		// Once the stages have been ordered we set the parents ids of the stages (if a stage is my child, I am his father), removing the previous one
+		setParentIdsOfStages();
+	}
+	
+	private static void setParentIdsOfStages(){
 		for (Map.Entry<Integer, Stage> entry : stagesMap.entrySet()){
 			entry.getValue().emptyParents();
 		}
@@ -612,10 +676,10 @@ public class MainClass {
 				Stage child = stagesMap.get(id);
 //				prettyPrint(child);
 //				System.out.println("ID of parent: " +stage.getId());
-				child.addParentId(stage.getId());
+				if(!child.getParentsIds().contains(stage.getId()))
+					child.addParentId(stage.getId());
 			}
-			
-		}
+		}		
 	}
 	
 	/*
@@ -645,7 +709,7 @@ public class MainClass {
 		
 		return childrenStagesList;
 	}
-	
+		
 	public static void updateRDDs(){
 		Stage stage;
 		rdds--;
@@ -664,6 +728,16 @@ public class MainClass {
 					rdd.removeParentsIds();
 					for(Integer idParent: parentsIds){
 						rdd.addParentId(rdds - idParent);
+					}
+				
+					List<String> conditions = rdd.getCondition();
+					rdd.removeCondition();
+					if(conditions != null){
+						for(String condition: conditions){
+							String id = condition.split(",", 2)[0];
+							String cond = (rdds - Integer.valueOf(id)) +","+condition.split(",", 2)[1];
+							rdd.addCondition(cond);
+						}						
 					}
 				}
 			}			

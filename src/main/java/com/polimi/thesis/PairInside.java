@@ -11,7 +11,7 @@ public class PairInside{
         this.setCondition(condition);
     }
 
-	public Boolean getInside() {
+	public Boolean isInside() {
 		return inside;
 	}
 
