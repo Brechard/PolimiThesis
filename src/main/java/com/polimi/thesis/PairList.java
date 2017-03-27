@@ -5,19 +5,19 @@ import java.util.List;
 
 public class PairList {
 
-	private List<String> ifs = new ArrayList<String>();
+	private List<Condition> ifs = new ArrayList<Condition>();
 	private List<String> loops = new ArrayList<String>();
 
-	public PairList(List<String> ifs, List<String> loops) {
+	public PairList(List<Condition> ifs, List<String> loops) {
         this.ifs = ifs;
         this.loops = loops;
     }
 
-	public List<String> getIfs() {
+	public List<Condition> getIfs() {
 		return ifs;
 	}
 
-	public void setIfs(List<String> ifs) {
+	public void setIfs(List<Condition> ifs) {
 		this.ifs = ifs;
 	}
 

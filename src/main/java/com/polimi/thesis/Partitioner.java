@@ -90,7 +90,7 @@ public class Partitioner {
 //        myMap.put("coalesce", "CoalescedRDDPartition");		// Check
         myMap.put("coalesce", "DefaultPartitionCoalescer");		// Check
         myMap.put("repartition", "HashPartitioner");
-        myMap.put("substract", "");								// Supposed to be in RDD but can't find
+        myMap.put("substract", "");								// Supposed to be in Node but can't find
         myMap.put("parallelize", "ParallelCollectionPartition");
         myMap.put("combineByKey", "HashPartitioner");
         myMap.put("leftOuterJoin", "HashPartitioner");

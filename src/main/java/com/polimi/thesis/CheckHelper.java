@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.polimi.thesis.Variables.MethodsType;
+import com.polimi.thesis.Variables.NodeType;
 
 public class CheckHelper {
 
@@ -18,12 +19,12 @@ public class CheckHelper {
 	}
 	
 	public static int checkExistence(Stage stage, Map<Integer, Stage> stagesList){
-		List<RDD> rdds = stage.getRDDs();
+		List<Node> rdds = stage.getNodes();
 		for (Map.Entry<Integer, Stage> entry : stagesList.entrySet()){
 			Stage stage1 = entry.getValue();
 			if (stage1.getId() == stage.getId())
 				continue;
-			List<RDD> rdds1 = stage1.getRDDs();
+			List<Node> rdds1 = stage1.getNodes();
 			int equal = 0;
 			for (int i = 0; i < rdds1.size(); i++) {
 				String callsite = rdds1.get(i).getCallSite();
@@ -39,13 +40,14 @@ public class CheckHelper {
 		
 		return -1;
 	}
-	
-	public static int checkExistence(String callSite, Stage stage){
+	/*
+	 * Check existence of an rdd node
+	 */
+	public static int checkExistenceNode(String callSite, Stage stage){
 		System.err.println("CheckExistence, Callsite: " +callSite);
-
-		List<RDD> rdds = stage.getRDDs();
-		for(RDD rdd1: rdds){
-			if(rdd1.getCallSite().equals(callSite)){
+		List<Node> rdds = stage.getNodes();
+		for(Node rdd1: rdds){
+			if(rdd1.isRDD() && rdd1.getCallSite().equals(callSite)){
 				MainClass.prettyPrint(stage);
 				System.err.println(">>>>>>>>>>>: " +rdd1.getId());
 				return rdd1.getId();
@@ -53,12 +55,57 @@ public class CheckHelper {
 		}
 		return -1;
 	}
+	/*
+	 * Check existence of a node that can be either join or fork
+	 * @return id of duplicated (that is the same as the id passed) or a positive number (because we store the joins and fork as negatives ids)
+	 */
+	public static int checkExistenceNode(int id, Stage stage, NodeType type){
+		System.err.println("CheckExistence, id: " +id);
+		List<Node> nodes = stage.getNodes();
+		for(Node node: nodes){
+			if(node.getType() == type && node.getId() == id){
+				System.err.println(">>>>>>>>>>>: " +node.getId());
+				return node.getId();
+			}
+		}
+		return 1;
+	}
 	
 	
-	
-	public static PairInside checkInside(int pos, String op, List<String> ifs, List<String> loops){
+	public static PairInside checkInsideIf(int pos, List<Condition> ifs){
+		List<Condition> list = ifs;
+		PairInside pair = new PairInside(false, new ArrayList<String>());
+		System.out.println("\nAAAAAA>>> Position: " +pos);
+		for(Condition con: list){
+			int start = con.getStart();
+			String condition = con.getCondition();
+			int end = con.getEnd();
+			if((start <= pos) && (pos <= end)){
+				pair.setInside(true);
+				pair.getCondition().add(con.getId()+ " - " +condition);
+				pair.setType(con.getType());
+				if(con.getFirstMethodPos().contains(pos)){
+					pair.setIsFirst(true);
+					pair.getIdIfsFirst().add(con.getId());
+				}
+				if(con.getLastMethodPos().contains(pos)){
+					pair.setIsLast(true);
+					pair.getIdIfsLast().add(con.getId());
+				}
+				System.out.println("AAAAAA>>> First method: " +con.getFirstMethod() + ", position: " +con.getFirstMethodPos());
+				System.out.println("AAAAAA>>> Last method: " +con.getLastMethod() + ", position: " +con.getLastMethodPos()+"\n");
+			}
+		}		
+/*		if(pair.isInside())
+			System.out.println("AAAAAA>>> Is inside: " +pair.isInside()+", cond: " +pair.getCondition()+"\n");
+		else
+			System.out.println("AAAAAA>>> Is inside: " +pair.isInside()+"\n");
+	*/	
+		return pair;
+	}
+
+	public static PairInside checkInsideLoop(int pos, List<String> loops){
 		List<String> list = loops;
-		if(op.equals("if")) list = ifs;
 		PairInside pair = new PairInside(false, new ArrayList<String>());
 		for(String s: list){
 			String[] splitted = s.split("-");
@@ -72,6 +119,7 @@ public class CheckHelper {
 		}		
 		return pair;
 	}
+
 	
 	// Check if the method receive is a shuflle method, an action, a transformation or is some method that is not from spark
 	public static MethodsType checkMethod(String method){

@@ -2,8 +2,12 @@ package com.polimi.thesis;
 
 public class Variables 
 {
-	public enum MethodsType{
+	public enum MethodsType {
 		action, transformation, shuffle, others
+	}
+	
+	public enum NodeType {
+		rdd, fork, join		
 	}
 	
 //	public static String path = "/home/rodrigo/workspace/cspark/src/main/java/cspark/SparkJoins.java";	
@@ -54,7 +58,7 @@ public class Variables
 	 * mapPartitions, mapPartitionsWithIndex,
 	 */
 	   // `preservesPartitioning` indicates whether the input function preserves the partitioner, which
-	   // should be `false` unless this is a pair RDD and the input function doesn't modify the keys.
+	   // should be `false` unless this is a pair Node and the input function doesn't modify the keys.
 
 }
 

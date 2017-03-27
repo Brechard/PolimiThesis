@@ -3,8 +3,11 @@ package com.polimi.thesis;
 import java.util.ArrayList;
 import java.util.List;
 
-public class RDD{
+import com.polimi.thesis.Variables.NodeType;
+
+public class Node{
 	private String callSite;
+	private NodeType type;
 	private int id;
 	private List<Integer> childrenIds;
 	private List<Integer> parentsIds;
@@ -12,18 +15,29 @@ public class RDD{
 	private List<String> conditionedWithoutChildren;
 	private List<String> loop;
 	private String partitioner;
-	public RDD(String callSite, int id, String  partitioner){
+	private NodeType parentType;
+	public Node(String callSite, int id, String  partitioner, NodeType type){
 		this.callSite = callSite;
+		this.type = type;
 		this.id = id;
 		childrenIds = new ArrayList<Integer>();
-		parentsIds = new ArrayList<Integer>();		
+		parentsIds = new ArrayList<Integer>();					
 		this.setPartitioner(partitioner);
+	}
+	/*
+	 * This constructor is used only for creating joins or forks.
+	 * The id is set as negative so we can differentiate them from rdds
+	 */
+	public Node(int id, NodeType type){
+		this.type = type;
+		this.id = -id;
 	}
 
 	public void addChildId(int id){
 		if(childrenIds == null)
 			childrenIds = new ArrayList<Integer>();
-		childrenIds.add(id);
+		if(!childrenIds.contains(id))
+			childrenIds.add(id);
 	}
 	
 	public void addChildrenId(List<Integer> ids){
@@ -35,7 +49,9 @@ public class RDD{
 	public void addParentId(int id){
 		if(parentsIds == null)
 			parentsIds = new ArrayList<Integer>();
-		parentsIds.add(id);
+		if(!parentsIds.contains(id))
+			parentsIds.add(id);
+		System.out.println("Add parent ID:" +id+", in " +this.id+", type: " +this.type);
 	}
 	
 	public void addParentsId(List<Integer> ids){
@@ -97,6 +113,18 @@ public class RDD{
 	}
 	public void setId(int id){
 		this.id = id;
+	}
+	public Boolean isRDD(){
+		return type == NodeType.rdd;
+	}
+	public NodeType getType(){
+		return type;
+	}
+	public NodeType getParentType() {
+		return parentType;
+	}
+	public void setParentType(NodeType parentType) {
+		this.parentType = parentType;
 	}
 }	
 

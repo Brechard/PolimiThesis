@@ -14,25 +14,27 @@ public class CreateStages {
 	
 	public static PairMapInt create(Map<Integer, Stage> stagesMap2, int stages){
 		System.out.println("\n\n\nCreateStages");
+		System.out.println("Stages: ");
+		MainClass.prettyPrint(stagesMap2);
 		stagesMap = new HashMap<Integer, Stage>();
 		Partitioner partitioner = new Partitioner("");
 		removeDuplicatedRDDs(stagesMap2);
 		for (Map.Entry<Integer, Stage> entry : stagesMap2.entrySet()){
 			stage = entry.getValue();
-			List<RDD> listRDDs = stage.getRDDs();
+			List<Node> listRDDs = stage.getNodes();
 			Map<Integer, Integer> mapStages = new HashMap<Integer, Integer>(); // key = rddId, value = stageId where the rdd is
-			Map<Integer, RDD> mapRDDs = new HashMap<Integer, RDD>(); 
+			Map<Integer, Node> mapRDDs = new HashMap<Integer, Node>(); 
 			for(int i = 0; i < listRDDs.size(); i++){
 				mapRDDs.put(listRDDs.get(i).getId(), listRDDs.get(i));
 			}
 			for(int i = 0; i < listRDDs.size(); i++){
-				RDD rdd = listRDDs.get(i);
+				Node rdd = listRDDs.get(i);
 				String method = rdd.getCallSite().split(" at ")[0];
 				MethodsType type = CheckHelper.checkMethod(method);
 				List<Integer> childrenIds = rdd.getChildrenId();
 				// Right now it is only possible that the rdd has one child or cero, because we haven't merged yet the stages that are equal
 				if(childrenIds.size() > 0){
-					RDD childRDD = mapRDDs.get(childrenIds.get(0));
+					Node childRDD = mapRDDs.get(childrenIds.get(0));
 					String childMethod = childRDD.getCallSite().split(" at ")[0];
 					partitioner = new Partitioner("");
 					partitioner.setPartitioner(childRDD.getPartitioner());
@@ -56,7 +58,7 @@ public class CreateStages {
 				} else {
 					stage = new Stage(stages++);
 				}
-				stage.addRDD(rdd);
+				stage.addNode(rdd);
 				System.out.println("Partitioner before: " +partitioner.getPartitioner());
 				partitioner.setPartitionerOfMethod(method);
 				System.out.println("Partitioner updated: " +partitioner.getPartitioner());
@@ -76,11 +78,11 @@ public class CreateStages {
 		if(stagesMap2.containsKey(0))
 			stage = stagesMap2.get(0);
 		else return;
-		List<RDD> rdds = stage.getRDDs();
+		List<Node> rdds = stage.getNodes();
 		for(int i = 0; i < rdds.size(); i++){
-			RDD rdd = rdds.get(i);
+			Node rdd = rdds.get(i);
 			for(int j = i + 1; j < rdds.size(); j++){
-				RDD rdd2 = rdds.get(j);
+				Node rdd2 = rdds.get(j);
 				if(rdd.getCallSite().equals(rdd2.getCallSite())){
 					if(!idsOfRDDsToRemove.containsKey(rdd2.getId()))
 						idsOfRDDsToRemove.put(rdd2.getId(), rdd.getId());
@@ -107,7 +109,7 @@ public class CreateStages {
 			int idPut = entry.getValue();
 			System.out.println("idRemove: " +idRemove+", idPut: " +idPut);
 			for(int j = 0; j < rdds.size(); j++){
-				RDD rdd = rdds.get(j);
+				Node rdd = rdds.get(j);
 				if(rdd.getId() == idRemove){
 					rdds.remove(j);
 				}				
@@ -132,14 +134,14 @@ public class CreateStages {
 			if(check > -1 && !idsOfStagesUsedToRemove.contains(stage.getId())){
 
 				Stage stageToKeep = stagesMap.get(check);
-				RDD lastRDD = stageToKeep.getRDDs().get(0);
-				RDD lastRDDOfTheDuplicatedStage = stage.getRDDs().get(0);
+				Node lastRDD = stageToKeep.getNodes().get(0);
+				Node lastRDDOfTheDuplicatedStage = stage.getNodes().get(0);
 				lastRDD.addChildrenId(lastRDDOfTheDuplicatedStage.getChildrenId());
 //				stageToKeep.addChildId(stage.getChildId());
 
 				for (Map.Entry<Integer, Stage> entry2 : stagesMap.entrySet()){
 					Stage stage2 = entry2.getValue();
-					List<RDD> rdds = stage2.getRDDs();
+					List<Node> rdds = stage2.getNodes();
 					for (int z = 0; z < rdds.size(); z++) {
 						if (lastRDDOfTheDuplicatedStage.getChildrenId().contains(rdds.get(z).getId())){
 							rdds.get(z).getParentsId().remove(Integer.valueOf(lastRDDOfTheDuplicatedStage.getId()));
@@ -176,8 +178,8 @@ public class CreateStages {
 		/*
 		for (Map.Entry<Integer, Stage> entry : stagesMap.entrySet()){
 			stage = entry.getValue();
-			List<RDD> rdds = stage.getRDDs();
-			for(RDD rdd: rdds)
+			List<Node> rdds = stage.getNodes();
+			for(Node rdd: rdds)
 				rdd.removeChild();
 			stage.removeChilds();
 		}

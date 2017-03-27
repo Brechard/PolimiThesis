@@ -3,9 +3,11 @@ package com.polimi.thesis;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.polimi.thesis.Variables.NodeType;
+
 public class Stage{
 	private int id;
-	private List<RDD> rdds;
+	private List<Node> nodes;
 	private List<Integer> childId;
 	private List<Integer> parentId;
 	private Boolean updatedChild;
@@ -15,10 +17,10 @@ public class Stage{
 		this.id = id;
 		childId = new ArrayList<Integer>();
 		parentId = new ArrayList<Integer>();
-		rdds = new ArrayList<RDD>();
+		nodes = new ArrayList<Node>();
 	}
-	public void addRDD(RDD child) {
-		rdds.add(child);
+	public void addNode(Node child) {
+		nodes.add(child);
 	}
 	public void addChildId(int id){
 		if(childId == null)
@@ -49,8 +51,8 @@ public class Stage{
 	public int getId(){
 		return id;
 	}
-	public List<RDD> getRDDs(){
-		return rdds;
+	public List<Node> getNodes(){
+		return nodes;
 	}
 	public void setId(int id){
 		this.id = id;
@@ -62,7 +64,7 @@ public class Stage{
 		return updatedChild;
 	}
 	public Boolean isEmpty(){
-		return rdds.isEmpty();
+		return nodes.isEmpty();
 	}	
 	public void removeChildrenIds(){
 		childId = null;
@@ -77,14 +79,28 @@ public class Stage{
 		updatedChild = null;
 	}
 	public void addAll(Stage stage){
-		List<RDD> notContained = new ArrayList<RDD>(stage.getRDDs());
-		notContained.removeAll(rdds);
-		rdds.addAll(notContained);
+		List<Node> notContained = new ArrayList<Node>(stage.getNodes());
+		notContained.removeAll(nodes);
+		nodes.addAll(notContained);
 		List<Integer> not = new ArrayList<Integer>(stage.getChildrenId());
 		not.removeAll(childId);
 		childId.addAll(not);
 		not = new ArrayList<Integer>(stage.getParentsIds());
 		not.removeAll(parentId);
 		parentId.addAll(not);
+	}
+	public Node getNode(int id){
+		for(Node node: nodes){
+			if(node.getId() == id)
+				return node;
+		}
+		return null;
+	}
+	public Node getNode(int id, NodeType type){
+		for(Node node: nodes){
+			if(node.getId() == id && node.getType() == type)
+				return node;
+		}
+		return null;
 	}
 }
