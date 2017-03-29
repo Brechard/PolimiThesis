@@ -11,12 +11,12 @@ public class Job {
 	private String callSite;
 	private List<String> condition;
 	private List<String> loop;
-	private Map<Integer, Stage> stages;
+	private Map<Integer, StageMap> stages;
 		
 	public Job(int id, String callSite) {
 		jobId = id;
 		this.callSite = callSite;
-		stages = new HashMap<Integer, Stage>();
+		stages = new HashMap<Integer, StageMap>();
 	}	
 	public int getId() {
 		return jobId;
@@ -36,10 +36,10 @@ public class Job {
 	public void setLoop(List<String> loop) {
 		this.loop = loop;
 	}
-	public Map<Integer, Stage> getStages() {
+	public Map<Integer, StageMap> getStages() {
 		return stages;
 	}
-	public void setStages(Map<Integer, Stage> stages) {
+	public void setStages(Map<Integer, StageMap> stages) {
 		this.stages = stages;
 	}
 	public String getCallSite(){
@@ -54,5 +54,8 @@ public class Job {
 		if(this.loop == null) 
 			this.loop = new ArrayList<String>();
 		this.loop.add(loop);
-	}		
+	}	
+	public void addStage(Integer key, StageMap value){
+		stages.put(key, value);
+	}
 }

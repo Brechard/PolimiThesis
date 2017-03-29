@@ -11,11 +11,9 @@ public class Node{
 	private int id;
 	private List<Integer> childrenIds;
 	private List<Integer> parentsIds;
-	private List<String> conditionedParent;
-	private List<String> conditionedWithoutChildren;
 	private List<String> loop;
+	private String conditionId = null;
 	private String partitioner;
-	private NodeType parentType;
 	public Node(String callSite, int id, String  partitioner, NodeType type){
 		this.callSite = callSite;
 		this.type = type;
@@ -26,11 +24,10 @@ public class Node{
 	}
 	/*
 	 * This constructor is used only for creating joins or forks.
-	 * The id is set as negative so we can differentiate them from rdds
 	 */
 	public Node(int id, NodeType type){
 		this.type = type;
-		this.id = -id;
+		this.id = id;
 	}
 
 	public void addChildId(int id){
@@ -76,17 +73,6 @@ public class Node{
 			parentsIds = new ArrayList<Integer>();
 		return parentsIds;
 	}
-	public void addCondition(String condition){
-		if(conditionedParent == null)
-			conditionedParent = new ArrayList<String>();
-		conditionedParent.add(condition);
-	}
-	public List<String> getCondition(){
-		return conditionedParent;
-	}
-	public void addConditionItSelf(List<String> condition){
-		conditionedWithoutChildren = condition;		
-	}
 	public void setLoop(List<String> loop){
 		this.loop = loop;
 	}
@@ -96,10 +82,6 @@ public class Node{
 	public void removeParentsIds(){
 		parentsIds = null;
 	}
-	public void removeCondition(){
-		conditionedParent = null;
-	}
-
 	public String getPartitioner() {
 		return partitioner;
 	}
@@ -120,11 +102,13 @@ public class Node{
 	public NodeType getType(){
 		return type;
 	}
-	public NodeType getParentType() {
-		return parentType;
+	public int getConditionId() {
+		if(conditionId == null)
+			return -1;
+		return Integer.valueOf(conditionId);
 	}
-	public void setParentType(NodeType parentType) {
-		this.parentType = parentType;
+	public void setConditionId(int conditionId) {
+		this.conditionId = String.valueOf(conditionId);
 	}
 }	
 

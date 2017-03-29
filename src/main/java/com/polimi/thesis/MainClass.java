@@ -3,21 +3,16 @@ package com.polimi.thesis;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import javax.swing.tree.DefaultMutableTreeNode;
 
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseException;
 import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.ast.type.PrimitiveType.Primitive;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.polimi.thesis.Variables.MethodsType;
@@ -34,7 +29,7 @@ public class MainClass {
 	private static Set<String> listSC;
 	
 	private static List<Job> jobsList = new ArrayList<Job>();
-	private static Map<Integer, Stage> stagesMap = new HashMap<Integer, Stage>();
+	private static Map<Integer, Stage> uniqueStage = new HashMap<Integer, Stage>();
 	private static int nStages;
 	private static List<Condition> ifs;
 	private static List<String> loops;
@@ -106,7 +101,7 @@ public class MainClass {
 		System.out.println("Number of jobs: " +jobs);
 		for(int i = jobs - 1; i >= 0; i--) { // We iterate over the map with the spark methods
 			Job job = jobsList.get(i);
-			stagesMap = job.getStages();
+			uniqueStage = new HashMap<Integer, Stage>();
 			
 			int key = Integer.valueOf(job.getCallSite().split("-")[0]);
 			String method = job.getCallSite().split("-")[1];
@@ -137,13 +132,18 @@ public class MainClass {
 			int n = 0;
 			if(pairMapInt != null)
 				n = pairMapInt.getnStages();
+			// Here we should create the stages
+			updatenodes();
+			for (Map.Entry<Integer, Stage> entry : uniqueStage.entrySet()){
+				job.addStage(entry.getKey(), new StageMap(entry.getValue()));				
+			}
 		}
 
 			/*
 			
-			pairMapInt = CreateStages.create(stagesMap, n);
-			stagesMap = pairMapInt.getStagesList();
-			job.setStages(stagesMap);
+			pairMapInt = CreateStages.create(uniqueStage, n);
+			uniqueStage = pairMapInt.getStagesList();
+			job.setStages(uniqueStage);
 			jobsList.set(i, job);
 		}
 
@@ -154,14 +154,13 @@ public class MainClass {
 		}
 		System.out.println("Number of stages: " +nStages);
 		for(int i = jobs - 1; i >= 0; i--) { // We iterate over the map with the spark methods
-			stagesMap = jobsList.get(i).getStages();
+			uniqueStage = jobsList.get(i).getStages();
 			updateStages();	
 		}
 		
 		*/
 
 		prettyPrint(jobsList);
-		updatenodes();
 		cleanJSON();
 		
 		System.out.println("\nNumber of jobs: " +jobsList.size());
@@ -311,7 +310,7 @@ public class MainClass {
 		for (int b = 0; b < nodesParentsId.size() ; b++) {
 			System.out.println("generate, rddchildId: " +b+": "+nodesParentsId.get(b));
 		}
-		if (nodesParentsId.isEmpty()) {		int nStages = stagesMap.size() - 1;
+		if (nodesParentsId.isEmpty()) {		int nStages = uniqueStage.size() - 1;
 
 			System.out.println("generate, rddchildId is empty");			
 		}
@@ -353,43 +352,36 @@ public class MainClass {
 			} else {				
 				inside = CheckHelper.checkInsideIf(Integer.valueOf(pos), ifs);
 				if(inside.isInside()){
-					if(inside.getIsFirst()){
-//						System.err.println("Method: " +method+" is first, " +inside.getIdIfsFirst());
-						/*
-						 *  TODO
-						 */
 					
-					}
 					if(inside.getIsLast()){
 						List<Integer> idIfsLast = inside.getIdIfsLast();
 						System.err.println("Method: " +method+" is last, " +idIfsLast);
 						for(int i = 0; i < idIfsLast.size(); i++){
-							int id = CheckHelper.checkExistenceNode(-idIfsLast.get(i), child2, NodeType.join);
-							if(id < 0){
+							int id = CheckHelper.checkExistenceNode(idIfsLast.get(i), child2, NodeType.join);
+							if(id > 0){
 								Node node = child2.getNode(id, NodeType.join);
 								if(!node.getChildrenId().contains(childId))
 									node.addChildId(childId);										
 								rdd1 = node;
 							} else {
-								rdd1 = new Node(idIfsLast.get(i), NodeType.join);							
+								rdd1 = new Node(nodes++, NodeType.join);							
+								rdd1.setConditionId(idIfsLast.get(i));
 								rdd1.addChildId(childId);
 								child2.addNode(rdd1);		
 								Node node = child2.getNode(childId);
 								System.out.println("Let's add3 as parent " +rdd1.getId()+" to: ");
 								prettyPrint(node);
 								node.addParentId(rdd1.getId());
-								node.setParentType(NodeType.join);
 							}
 							for(Condition con: ifs){
-								if(con.getId() == -rdd1.getId()){
+								if(con.getId() == rdd1.getConditionId()){
 									for(Integer idParent: con.getIdParentCondition()){
-										Node node = child2.getNode(-idParent, childType);
+										Node node = child2.getNode(idParent, childType);
 //										Node node = child2.getNode(-idParent);
 										System.out.println("Let's add2 as parent " +rdd1.getId()+" to: ");
 										prettyPrint(node);
 										if(node != null && !node.getParentsId().contains(rdd1.getId())){
 											node.addParentId(rdd1.getId());
-											node.setParentType(NodeType.join);
 										}
 									}
 								}
@@ -401,19 +393,28 @@ public class MainClass {
 								prettyPrint(node);
 								if(node != null && !node.getParentsId().contains(rdd1.getId())){
 									node.addParentId(rdd1.getId());
-									node.setParentType(NodeType.join);
 								}
 							}
 							childId = rdd1.getId();
 							childType = NodeType.join;
 						}						
-					}					
-					Node rdd2 = createRDD(callSite, method, s);
-					System.out.println("Let's add4 as parent " +rdd2.getId()+" to: ");
-					prettyPrint(rdd1);
-					if(inside.getIsLast() && !rdd1.getParentsId().contains(rdd2.getId()))
-						rdd1.addParentId(rdd2.getId());
-					rdd1 = rdd2;
+						Node rdd2 = createRDD(callSite, method, s);
+						System.out.println("Let's add4 as parent " +rdd2.getId()+" to: ");
+						prettyPrint(rdd1);
+						if(inside.getIsLast() && !rdd1.getParentsId().contains(rdd2.getId()))
+							rdd1.addParentId(rdd2.getId());
+						rdd1 = rdd2;
+					} else {
+						rdd1 = createRDD(callSite, method, s);
+						System.out.println("Let's add5 as parent " +rdd1.getId()+" to: ");
+						if(childId != null && childId > -1){
+							Node node = child2.getNode(childId);
+							prettyPrint(node);
+							if(node != null)
+								node.addParentId(rdd1.getId());
+						}
+					}
+					
 					PairInside insideLoop = CheckHelper.checkInsideLoop(Integer.valueOf(pos), loops);
 					if(insideLoop.isInside())
 						rdd1.setLoop(insideLoop.getCondition());
@@ -453,7 +454,7 @@ public class MainClass {
 				if(child2.getNodes().size() == 0){ // If in the stage there are still not nodes this means that the rdd will have his child in another stage
 					List<Integer> childrenStages = child2.getChildrenId();
 					for(Integer id: childrenStages){
-						Stage stageChild = stagesMap.get(id);
+						Stage stageChild = uniqueStage.get(id);
 //							System.out.println("Stage list id: " +id+", being search by: " +child2.id);
 //							prettyPrint(stagesList);
 						List<Node> nodesChild = stageChild.getNodes();
@@ -488,8 +489,6 @@ public class MainClass {
 						}
 					}
 				}										
-			} else if(inside != null && inside.isInside()){
-				rdd1.addConditionItSelf(inside.getCondition());
 			}
 			childId = rdd1.getId();			
 			if(exists == -1)
@@ -498,24 +497,23 @@ public class MainClass {
 				List<Integer> idIfsFirst = inside.getIdIfsFirst();
 				System.err.println("Method: " +method+" is first, " +idIfsFirst);
 				for(int i = 0; i < idIfsFirst.size(); i++){
-					int id = CheckHelper.checkExistenceNode(-idIfsFirst.get(i), child2, NodeType.fork);
-					if(id < 0){
+					int id = CheckHelper.checkExistenceNode(idIfsFirst.get(i), child2, NodeType.fork);
+					if(id > 0){
 						rdd1.addParentId(id);
-						rdd1.setParentType(NodeType.fork);
 						Node node = child2.getNode(id, NodeType.fork);
 						System.err.println("Node to change: ");
 						prettyPrint(node);
 						node.addChildId(rdd1.getId());
 						rdd1 = node;
 					} else {
-						Node node = new Node(idIfsFirst.get(i), NodeType.fork);							
+						Node node = new Node(nodes++, NodeType.fork);							
+						node.setConditionId(idIfsFirst.get(i));
 						node.addChildId(rdd1.getId());
 						System.err.println("Node created: ");
 						prettyPrint(node);
 						System.err.println("Node to update: ");
 						prettyPrint(rdd1);
 						rdd1.addParentId(node.getId());
-						rdd1.setParentType(NodeType.fork);
 						rdd1 = node;
 						child2.addNode(rdd1);														
 					}
@@ -549,59 +547,6 @@ public class MainClass {
 //				System.out.println("PARENT COMBINE");
 //				prettyPrint(child2);
 			}
-			/*
-			for (int b = 0; b < nodesParentsId.size() ; b++) {
-				System.out.println("End of loop, rddchildId: " +b+": "+nodesParentsId.get(b));
-			}
-			*/
-					
-					
-
-					/*
-					int id = CheckHelper.checkExistenceNode(-idIfsFirst.get(i), child2, NodeType.fork);
-					if(id < 0){
-						for(Node node: child2.getNodes()){
-							if(node.getId() == id){
-								if(!node.getChildrenId().contains(childId))
-									node.addChildId(childId);										
-								Node nodeChild = child2.getNode(childId);
-								if(!nodeChild.getParentsId().contains(node.getId()))
-									nodeChild.addParentId(node.getId());
-								rdd1 = node;
-							}
-						}
-					} else {
-						rdd1 = new Node(idIfsFirst.get(i), NodeType.fork);							
-						rdd1.addChildId(childId);
-						Node node = child2.getNode(childId);
-						node.addParentId(rdd1.getId());
-						child2.addNode(rdd1);								
-					}
-					/*
-					for(Condition con: ifs){
-						if(con.getId() == -rdd1.getId()){
-							for(Integer idParent: con.getIdParentCondition()){
-								Node node = child2.getNode(-idParent);
-								if(node != null && !node.getParentsId().contains(rdd1.getId())){
-									node.addParentId(rdd1.getId());
-								}
-							}
-						}
-					}
-					if(idIfsFirst.size() > 1){
-						Node node = child2.getNode(childId);
-						System.out.println("Let's add as parent " +rdd1.getId()+" to: ");
-						prettyPrint(node);
-						if(node != null && !node.getParentsId().contains(rdd1.getId()))
-							node.addParentId(rdd1.getId());
-					}
-
-					childId = rdd1.getId();
-				}
-			}
-										*/
-
-//			printTree();
 			position++;
 		}
 		p = 0;
@@ -792,11 +737,11 @@ public class MainClass {
 					} else if(CheckHelper.checkSC(cache, listSC)) { // If the method is applied directly to an SC it means the stage finishes here so we have to add it to the stageList
 //						System.out.println("Method applied to a SC, put in the stageList");
 						int key = parentsList.get(position).getId();
-						if(stagesMap.containsKey(key))
-							stagesMap.get(key).addAll(parentsList.get(position));
+						if(uniqueStage.containsKey(key))
+							uniqueStage.get(key).addAll(parentsList.get(position));
 						else 
-							stagesMap.put(parentsList.get(position).getId(), parentsList.get(position));
-						prettyPrint(stagesMap);
+							uniqueStage.put(parentsList.get(position).getId(), parentsList.get(position));
+						prettyPrint(uniqueStage);
 					} else {
 						System.err.println("Error in the code? " +cache+", block: " +block);
 					}
@@ -826,14 +771,14 @@ public class MainClass {
 		
 		List<Stage> childrenStagesList = new ArrayList<Stage>();
 		List<Integer> keys = new ArrayList<Integer>();
-		for (Map.Entry<Integer, Stage> entry : stagesMap.entrySet())
+		for (Map.Entry<Integer, Stage> entry : uniqueStage.entrySet())
 			keys.add(entry.getKey());
 
 		System.out.println("\n\n\n\n updateStages, " +keys);
-//		prettyPrint(stagesMap);
+//		prettyPrint(uniqueStage);
 
 		// Find the stage that does not have any child wich will be the last stage, from there we will order the others ("generation" by "generation"), updating childrenId and parentsId
-		for (Map.Entry<Integer, Stage> entry : stagesMap.entrySet()){
+		for (Map.Entry<Integer, Stage> entry : uniqueStage.entrySet()){
 			Stage stage = entry.getValue();
 			if(stage.getChildrenId().isEmpty()){
 				int oldId = stage.getId();
@@ -873,32 +818,32 @@ public class MainClass {
 //		System.out.println("Size: "+keys.size());
 		for (int i = 0; i < keys.size(); i++) {
 			Stage stage ;
-			if(stagesMap.containsKey(keys.get(i)))
-				stage = stagesMap.get(keys.get(i)); //Cache where i will put the stage
+			if(uniqueStage.containsKey(keys.get(i)))
+				stage = uniqueStage.get(keys.get(i)); //Cache where i will put the stage
 			else continue;
 			
 			Stage cache = null;
-			if(stagesMap.containsKey(stage.getId()))
-				cache = stagesMap.get(stage.getId());
+			if(uniqueStage.containsKey(stage.getId()))
+				cache = uniqueStage.get(stage.getId());
 			if(cache != null){
 //				System.out.println("Chache: " +stage.getId());
 	//			prettyPrint(cache);
 			}
 			if(keys.get(i) != stage.getId()){
 //				System.out.println("Put in: " +stage.getId()+", remove in: " +keys.get(i));
-				stagesMap.put(stage.getId(), stage);
-				stagesMap.remove(keys.get(i));
+				uniqueStage.put(stage.getId(), stage);
+				uniqueStage.remove(keys.get(i));
 			}
 			int pos = -1;
 			while(cache != null && cache.getId() != pos){
 				Stage aux = cache;
 				pos = aux.getId();
 
-				cache = stagesMap.get(pos);
+				cache = uniqueStage.get(pos);
 //				System.out.println("Cache: ");
 //				prettyPrint(cache);
 //				System.out.println("Put in: " +pos);
-				stagesMap.put(pos, aux);
+				uniqueStage.put(pos, aux);
 			}
 		}
 
@@ -906,9 +851,9 @@ public class MainClass {
 //		prettyPrint(stagesList);
 
 		for(Integer i : keys){
-			if(i >= keys.size() + (nStages+1) && stagesMap.containsKey(i)){
+			if(i >= keys.size() + (nStages+1) && uniqueStage.containsKey(i)){
 				System.out.println("\n\n\nremove: "+i+"\n\n\n");
-				stagesMap.remove(i);				
+				uniqueStage.remove(i);				
 			}
 		}
 		
@@ -921,17 +866,17 @@ public class MainClass {
 	}
 	
 	private static void setParentIdsOfStages(){
-		for (Map.Entry<Integer, Stage> entry : stagesMap.entrySet()){
+		for (Map.Entry<Integer, Stage> entry : uniqueStage.entrySet()){
 			entry.getValue().emptyParents();
 		}
 
-		for (Map.Entry<Integer, Stage> entry : stagesMap.entrySet()){
+		for (Map.Entry<Integer, Stage> entry : uniqueStage.entrySet()){
 			Stage stage = entry.getValue();
 			List<Integer> childrenIds = stage.getChildrenId();
 			System.out.println("Stage: "+stage.getId()+ ", children: " +childrenIds);
 			for(Integer id: childrenIds){
 //				System.out.println("Id of a child: " +id);
-				Stage child = stagesMap.get(id);
+				Stage child = uniqueStage.get(id);
 //				prettyPrint(child);
 //				System.out.println("ID of parent: " +stage.getId());
 				if(!child.getParentsIds().contains(stage.getId()))
@@ -947,7 +892,7 @@ public class MainClass {
 		List<Stage> childrenStagesList = new ArrayList<Stage>();
 		System.out.println("\nModifie stage, oldId: " +oldId+ ", newId: " +newId);
 		
-		for (Map.Entry<Integer, Stage> entry : stagesMap.entrySet()){
+		for (Map.Entry<Integer, Stage> entry : uniqueStage.entrySet()){
 			Stage stage = entry.getValue();
 			if(stage == stageCalling || (stage.getUpdatedChild() != null && stage.getUpdatedChild())) continue;
 			// Update in parents the childId
@@ -971,58 +916,35 @@ public class MainClass {
 	public static void updatenodes(){
 		Stage stage;
 		nodes--;
-		for(Job i: jobsList){
-			for (Map.Entry<Integer, Stage> entry : i.getStages().entrySet()){
-				stage = entry.getValue();
-				List<Node> listRDDs = stage.getNodes();
-				for(Node rdd: listRDDs){
-					if(rdd.isRDD())
-						rdd.setId(nodes - rdd.getId());
-						
-					List<Integer> childrenIds = rdd.getChildrenId();
-					rdd.removeChildrenIds();
-					for(Integer idChild: childrenIds){
-						if(idChild >= 0)
-							rdd.addChildId(nodes - idChild);
-						else 
-							rdd.addChildId(idChild);
-					}
-					List<Integer> parentsIds = rdd.getParentsId();
-					rdd.removeParentsIds();
-					for(Integer idParent: parentsIds){
-						if(idParent >= 0)
-							rdd.addParentId(nodes - idParent);
-						else rdd.addParentId(idParent);
-					}
+		stage = uniqueStage.get(0);
+		List<Node> listRDDs = stage.getNodes();
+		for(Node node: listRDDs){
+			node.setId(nodes - node.getId());
 				
-					/*
-					List<String> conditions = rdd.getCondition();
-					rdd.removeCondition();
-					if(conditions != null){
-						for(String condition: conditions){
-							String id = condition.split(",", 2)[0];
-							String cond = (nodes - Integer.valueOf(id)) +","+condition.split(",", 2)[1];
-							rdd.addCondition(cond);
-						}						
-					}						
-					*/
-				}
-			}			
+			List<Integer> childrenIds = node.getChildrenId();
+			node.removeChildrenIds();
+			for(Integer idChild: childrenIds){
+				node.addChildId(nodes - idChild);
+			}
+			List<Integer> parentsIds = node.getParentsId();
+			node.removeParentsIds();
+			for(Integer idParent: parentsIds){
+				node.addParentId(nodes - idParent);
+			}				
 		}		
 	}
 	
 	public static void cleanJSON(){
-		Stage stage;
+		StageMap stage;
 		for(Job i: jobsList){
-			for (Map.Entry<Integer, Stage> entry : i.getStages().entrySet()){
+			for (Map.Entry<Integer, StageMap> entry : i.getStages().entrySet()){
 				stage = entry.getValue();
-				List<Node> listRDDs = stage.getNodes();
-				for(Node rdd: listRDDs){
-					rdd.removeChildrenIds();
-					rdd.removePartitioner();
+				Map<Integer, Node> listNodes = stage.getNodes();
+				for (Map.Entry<Integer, Node> entry2 : listNodes.entrySet()){
+					Node node = entry2.getValue();
+					node.removeChildrenIds();
+					node.removePartitioner();
 				}
-				stage.removeChildrenIds();
-				stage.removeUpdated();
 			}
 		}
 	}
@@ -1033,5 +955,9 @@ public class MainClass {
 	
 	public static Stage createStage(){
 		return new Stage(stages);
+	}
+	
+	public static void convertToMap(){
+		
 	}
 }

@@ -59,16 +59,16 @@ public class CheckHelper {
 	 * Check existence of a node that can be either join or fork
 	 * @return id of duplicated (that is the same as the id passed) or a positive number (because we store the joins and fork as negatives ids)
 	 */
-	public static int checkExistenceNode(int id, Stage stage, NodeType type){
-		System.err.println("CheckExistence, id: " +id);
+	public static int checkExistenceNode(int conditionId, Stage stage, NodeType type){
+		System.err.println("CheckExistence, id: " +conditionId);
 		List<Node> nodes = stage.getNodes();
 		for(Node node: nodes){
-			if(node.getType() == type && node.getId() == id){
-				System.err.println(">>>>>>>>>>>: " +node.getId());
+			if(node.getType() == type && node.getConditionId() == conditionId){
+				System.err.println(">>>>>>>>>>>: NodeId: " +node.getId()+", conditionId: " +node.getConditionId());
 				return node.getId();
 			}
 		}
-		return 1;
+		return -1;
 	}
 	
 	
