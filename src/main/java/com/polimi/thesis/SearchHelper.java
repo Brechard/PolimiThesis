@@ -81,12 +81,11 @@ public class SearchHelper {
 	}
 
 	/*
-	 * This method searchs the start of a block of code surrounded of parenthesis
+	 * This method searchs the start of a block of code, extraParenthesis is in case the search starts already inside a parenthesis
 	 */
-
-	public static int searchStartBlock(int end, String file){
+	public static int searchStartBlock(String file, int end, int extraParenthesis){
 		int i = end;
-		int par = 0;
+		int par = extraParenthesis;
 		while (i > 0) {
 			if(file.charAt(i)==')') par++;                              
 			else if (file.charAt(i)=='(') par--;

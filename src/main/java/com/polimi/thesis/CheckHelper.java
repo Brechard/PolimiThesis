@@ -72,25 +72,25 @@ public class CheckHelper {
 	}
 	
 	
-	public static PairInside checkInsideIf(int pos, List<Condition> ifs){
+	public static Inside checkInsideIf(int pos, List<Condition> ifs){
 		List<Condition> list = ifs;
-		PairInside pair = new PairInside(false, new ArrayList<String>());
+		Inside inside = new Inside(false, new ArrayList<String>());
 		System.out.println("\nAAAAAA>>> Position: " +pos);
 		for(Condition con: list){
 			int start = con.getStart();
 			String condition = con.getCondition();
 			int end = con.getEnd();
 			if((start <= pos) && (pos <= end)){
-				pair.setInside(true);
-				pair.getCondition().add(con.getId()+ " - " +condition);
-				pair.setType(con.getType());
+				inside.setInside(true);
+				inside.getCondition().add(con.getId()+ " - " +condition);
+				inside.setType(con.getType());
 				if(con.getFirstMethodPos().contains(pos)){
-					pair.setIsFirst(true);
-					pair.getIdIfsFirst().add(con.getId());
+					inside.setIsFirst(true);
+					inside.getIdIfsFirst().add(con.getId());
 				}
 				if(con.getLastMethodPos().contains(pos)){
-					pair.setIsLast(true);
-					pair.getIdIfsLast().add(con.getId());
+					inside.setIsLast(true);
+					inside.getIdIfsLast().add(con.getId());
 				}
 				System.out.println("AAAAAA>>> First method: " +con.getFirstMethod() + ", position: " +con.getFirstMethodPos());
 				System.out.println("AAAAAA>>> Last method: " +con.getLastMethod() + ", position: " +con.getLastMethodPos()+"\n");
@@ -101,12 +101,12 @@ public class CheckHelper {
 		else
 			System.out.println("AAAAAA>>> Is inside: " +pair.isInside()+"\n");
 	*/	
-		return pair;
+		return inside;
 	}
 
-	public static PairInside checkInsideLoop(int pos, List<String> loops){
+	public static Inside checkInsideLoop(int pos, List<String> loops){
 		List<String> list = loops;
-		PairInside pair = new PairInside(false, new ArrayList<String>());
+		Inside pair = new Inside(false, new ArrayList<String>());
 		for(String s: list){
 			String[] splitted = s.split("-");
 			int start = Integer.valueOf(splitted[0]);

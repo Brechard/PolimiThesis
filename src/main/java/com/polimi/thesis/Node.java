@@ -46,9 +46,9 @@ public class Node{
 	public void addParentId(int id){
 		if(parentsIds == null)
 			parentsIds = new ArrayList<Integer>();
+		System.out.println("Add parent ID:" +id+", in " +this.id+", type: " +this.type+ ", contained? " +parentsIds.contains(id));
 		if(!parentsIds.contains(id))
 			parentsIds.add(id);
-		System.out.println("Add parent ID:" +id+", in " +this.id+", type: " +this.type);
 	}
 	
 	public void addParentsId(List<Integer> ids){

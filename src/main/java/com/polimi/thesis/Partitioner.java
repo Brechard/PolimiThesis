@@ -24,12 +24,12 @@ public class Partitioner {
 		}
 		if(partitioners.containsKey(methodChild)){
 			partitioner = partitioners.get(methodChild);
-			// Check if error here
 			if(partitioners.containsKey(methodChild)){
 				String part = partitioners.get(method);
 				System.out.println("Received: " +method+ ", childMethod: " +methodChild+ ", partition: " +part);
-				if(!part.equals("preserves")) // If it not preserves we update the value
+				if(part != null && !part.equals("preserves")) // If it not preserves we update the value
 					partitioner = partitioners.get(method);			
+				else partitioner = "";
 			} else partitioner = "";
 			
 		}
@@ -74,7 +74,7 @@ public class Partitioner {
         myMap.put("filter", "preserves");
         myMap.put("flatMap", "");
         myMap.put("mapPartitions", ""); 						// Check
-        myMap.put("mapPartitionsWithIndex", ""); 			// Check
+        myMap.put("mapPartitionsWithIndex", ""); 				// Check
         myMap.put("sample", "preserves");
         myMap.put("union", "DONT KNOW HOW TO DO");				// Check
         myMap.put("intersection", "");
@@ -85,7 +85,7 @@ public class Partitioner {
         myMap.put("sortByKey", "RangePartitioner");
         myMap.put("join", "HashPartitioner");
         myMap.put("cogroup", "preserves");
-        myMap.put("cartesian", ""); 					//Check
+        myMap.put("cartesian", ""); 							//Check
         myMap.put("pipe", "preserves");
 //        myMap.put("coalesce", "CoalescedRDDPartition");		// Check
         myMap.put("coalesce", "DefaultPartitionCoalescer");		// Check

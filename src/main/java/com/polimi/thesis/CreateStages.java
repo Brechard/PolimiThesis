@@ -18,7 +18,7 @@ public class CreateStages {
 		MainClass.prettyPrint(stagesMap2);
 		stagesMap = new HashMap<Integer, Stage>();
 		Partitioner partitioner = new Partitioner("");
-		removeDuplicatedRDDs(stagesMap2);
+//		removeDuplicatedRDDs(stagesMap2);
 		for (Map.Entry<Integer, Stage> entry : stagesMap2.entrySet()){
 			stage = entry.getValue();
 			List<Node> listRDDs = stage.getNodes();
@@ -33,7 +33,7 @@ public class CreateStages {
 				MethodsType type = CheckHelper.checkMethod(method);
 				List<Integer> childrenIds = rdd.getChildrenId();
 				// Right now it is only possible that the rdd has one child or cero, because we haven't merged yet the stages that are equal
-				if(childrenIds.size() > 0){
+				if(childrenIds != null && childrenIds.size() > 0){
 					Node childRDD = mapRDDs.get(childrenIds.get(0));
 					String childMethod = childRDD.getCallSite().split(" at ")[0];
 					partitioner = new Partitioner("");
@@ -72,7 +72,7 @@ public class CreateStages {
 		removeDuplicatedStages();
 		return new PairMapInt(stagesMap, stages);
 	}
-	
+	/*
 	private static void removeDuplicatedRDDs(Map<Integer, Stage> stagesMap2){
 		Map<Integer, Integer> idsOfRDDsToRemove = new HashMap<Integer, Integer>(); // key duplicated, value original
 		if(stagesMap2.containsKey(0))
@@ -124,6 +124,7 @@ public class CreateStages {
 			}
 		}
 	}
+	*/
 	
 	private static void removeDuplicatedStages(){
 		List<Integer> idsOfStagesToRemove = new ArrayList<Integer>();

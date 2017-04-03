@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class PairInside{
+public class Inside{
     private Boolean inside;
     private Boolean isFirst;
     private Boolean isLast;
@@ -13,7 +13,7 @@ public class PairInside{
     private List<Integer> idIfsFirst;
     private List<Integer> idIfsLast;
     private String type;
-    public PairInside(Boolean inside, List<String> condition) {
+    public Inside(Boolean inside, List<String> condition) {
         this.setInside(inside);
         this.setCondition(condition);
         idIfs = new ArrayList<Integer>();

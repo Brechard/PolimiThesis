@@ -25,12 +25,15 @@ public class Stage{
 	public void addChildId(int id){
 		if(childId == null)
 			childId = new ArrayList<Integer>();
-		childId.add(id);
+		if(!childId.contains(id))
+			childId.add(id);
 	}
 	public void addChildId(List<Integer> ids){
 		if(childId == null)
 			childId = new ArrayList<Integer>();
-		childId.addAll(ids);
+		List<Integer> notContained = new ArrayList<Integer>(ids);
+		notContained.removeAll(childId);
+		childId.addAll(notContained);
 	}
 	public List<Integer> getChildrenId(){
 		return childId;
@@ -38,12 +41,15 @@ public class Stage{
 	public void addParentId(int id){
 		if(parentId == null)
 			parentId = new ArrayList<Integer>();
-		parentId.add(id);
+		if(!parentId.contains(id))
+			parentId.add(id);
 	}
 	public void addParentsIds(List<Integer> ids){
 		if(parentId == null)
 			parentId = new ArrayList<Integer>();
-		parentId.addAll(ids);
+		List<Integer> notContained = new ArrayList<Integer>(ids);
+		notContained.removeAll(parentId);
+		parentId.addAll(notContained);
 	}
 	public List<Integer> getParentsIds(){
 		return parentId;

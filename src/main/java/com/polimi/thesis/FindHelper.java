@@ -137,10 +137,10 @@ public class FindHelper {
 	private static Map<Integer, String> conditions = new HashMap<Integer, String>(); 
 	private static int ifId = 0;
 	
-	public static PairList findIfsAndLoops(String file, int beggining){
+	public static ConditionsAndLoops findIfsAndLoops(String file, int beggining){
 		return findIfsAndLoops(file, beggining, new ArrayList<Integer>(), -1, false, false, "");
 	}
-	public static PairList findIfsAndLoops(String file, int beggining, List<Integer> idParentCondition, int id, Boolean addLastMethod, Boolean addFirstMethod, String parentType){
+	public static ConditionsAndLoops findIfsAndLoops(String file, int beggining, List<Integer> idParentCondition, int id, Boolean addLastMethod, Boolean addFirstMethod, String parentType){
 		int endIf = beggining;
 		Pattern r = Pattern.compile("\\w*");
 		Matcher m = r.matcher(file);
@@ -175,7 +175,7 @@ public class FindHelper {
 				endIf = checkIfContainsSparkMethods(file, i, s, beggining, false, idParentCondition, addLastMethod, addFirstMethod, parentType);	
 		}	
 //		System.out.println("<<<< Searching inside: "+idParentCondition+", id: " +id);		
-		return new PairList(ifs, loops);
+		return new ConditionsAndLoops(ifs, loops);
 	}
 	
 	private static String condition = ""; // The condition is a global variable in order to save the value for the else, the value is only updated when there are spark methods inside
@@ -363,17 +363,17 @@ public class FindHelper {
 	}
 
 	/*
-	 * Finds the block where the rdd passed as parameter is created
+	 * Finds the block where the rdd passed as parameter is created or updated
 	 */
-	public static List<Pair> findBlock(String rdd, Integer actualPos, String file){
+	public static List<BlockOfCode> findBlock(String rdd, Integer actualPos, String file){
 		
 		List<Integer> start = findRDD(rdd, actualPos, file);	
-		List<Pair> pairs = new ArrayList<Pair>();
+		List<BlockOfCode> pairs = new ArrayList<BlockOfCode>();
 		for(Integer i: start){
 			int a = file.substring(i).indexOf('.') + i + 1;
 			System.out.println(">>> findBlock, rdd: " +rdd+" -> Start: " +i+", continuing: " +
 					file.substring(i, i + 25)+", index: " +a+", cont: " +file.substring(a, a+7));
-			pairs.add(new Pair(file.substring(i, SearchHelper.searchEndBlock(i, 0, file)), i, a));
+			pairs.add(new BlockOfCode(file.substring(i, SearchHelper.searchEndBlock(i, 0, file)), i, a));
 		}		
 		return pairs;
 	}
